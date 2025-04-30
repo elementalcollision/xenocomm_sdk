@@ -1,0 +1,16 @@
+{
+   Python interpreter leaks
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:PyObject_Malloc
+   ...
+}
+{
+   Python module initialization
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:Py_InitializeEx
+   ...
+} 

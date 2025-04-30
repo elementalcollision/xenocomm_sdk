@@ -12,6 +12,14 @@ option(BUILD_BENCHMARKS "Build performance benchmarks" ON)
 find_package(Threads REQUIRED)
 find_package(OpenSSL 1.1.1 REQUIRED)
 
+# nlohmann/json (for JSON support)
+FetchContent_Declare(
+    json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+)
+FetchContent_MakeAvailable(json)
+
 # Google Test
 if(BUILD_TESTING)
     if(USE_SYSTEM_GTEST)
@@ -73,16 +81,18 @@ endif()
 
 # Reed-Solomon error correction library
 option(USE_SYSTEM_REED_SOLOMON "Use system-installed Reed-Solomon library" OFF)
-if(USE_SYSTEM_REED_SOLOMON)
-    find_package(reed_solomon_erasure REQUIRED)
-else()
-    FetchContent_Declare(
-        reed_solomon_erasure
-        GIT_REPOSITORY https://github.com/klayoutmatthias/reed-solomon-erasure.git
-        GIT_TAG v1.2.3
-    )
-    set(BUILD_REED_SOLOMON_TESTS OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(reed_solomon_erasure)
+if(FALSE) # Temporarily disabled
+    if(USE_SYSTEM_REED_SOLOMON)
+        find_package(reed_solomon_erasure REQUIRED)
+    else()
+        FetchContent_Declare(
+            reed_solomon_erasure
+            GIT_REPOSITORY https://github.com/klayoutmatthias/reed-solomon-erasure.git
+            GIT_TAG v1.2.3
+        )
+        set(BUILD_REED_SOLOMON_TESTS OFF CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(reed_solomon_erasure)
+    endif()
 endif()
 
 # zlib (for data compression)

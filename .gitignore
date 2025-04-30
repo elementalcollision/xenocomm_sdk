@@ -11,6 +11,8 @@ node_modules/
 
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # Editor directories and files
 .idea
@@ -39,6 +41,12 @@ cmake-build-*/
 .vs/
 *.swp
 *.swo
+
+# Cursor-specific files
+.cursor/
+.cursor-log/
+*.cursor-log
+cursor.log
 
 # Compiled Object files
 *.slo
@@ -101,6 +109,10 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.python-version
+.pytest_cache/
+.coverage
+htmlcov/
 
 # OS generated files
 .DS_Store
@@ -121,6 +133,10 @@ docs/api/html/
 *.gcda
 *.gcov
 coverage/
+.coverage
+coverage.xml
+coverage.info
+.nyc_output/
 
 # Dependency directories
 third_party/
@@ -129,4 +145,42 @@ vendor/
 # Editor backup files
 *~
 *.bak
-*.backup 
+*.backup
+*.swp
+*.swo
+
+# Local development files
+*.local
+.local/
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+tmp/
+
+# Debug files
+.debug/
+debug/
+debug.log
+
+# Profiling data
+*.prof
+profile/
+.profile/
+
+# Binary files
+*.bin
+*.dat
+*.db
+
+# Archive files
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Core dumps
+core
+*.core 

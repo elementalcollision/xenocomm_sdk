@@ -1,10 +1,23 @@
 # Core module sources will be added here
 # Currently all sources are listed in the parent CMakeLists.txt 
 
+# Ensure protobuf_generate_cpp is available
+if(USE_SYSTEM_PROTOBUF)
+    include(FindProtobuf)
+    find_package(Protobuf REQUIRED)
+    include(ProtobufGenerate)
+endif()
+
+# For bundled protobuf, also include ProtobufGenerate
+if(NOT USE_SYSTEM_PROTOBUF)
+    include(ProtobufGenerate)
+endif()
+
 # Generate protobuf files
 protobuf_generate_cpp(FEEDBACK_PROTO_SRCS FEEDBACK_PROTO_HDRS
     ${CMAKE_CURRENT_SOURCE_DIR}/feedback_data.proto
 )
+target_sources(xenocomm PRIVATE ${FEEDBACK_PROTO_SRCS})
 
 # Core module CMakeLists.txt
 target_sources(xenocomm
@@ -34,7 +47,8 @@ target_sources(xenocomm
         ${CMAKE_CURRENT_SOURCE_DIR}/data_adapters.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/parameter_fallback.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/timeout_negotiation_protocol.cpp
-        ${FEEDBACK_PROTO_SRCS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/circuit_breaker.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/canary_deployment.cpp
 )
 
 # Add include directories for generated protobuf files
@@ -46,7 +60,6 @@ target_include_directories(xenocomm
 # Link against required libraries
 target_link_libraries(xenocomm
     PRIVATE
-        reed_solomon_erasure
         protobuf::libprotobuf
         ZLIB::ZLIB
         OpenSSL::SSL
