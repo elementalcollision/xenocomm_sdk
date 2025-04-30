@@ -41,7 +41,7 @@ option(BUILD_TESTING "Build tests" ON)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_DOCS "Build documentation" OFF)
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
-option(BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
+option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
 # Include dependency management
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
@@ -67,6 +67,10 @@ endif()
 
 if(BUILD_DOCS)
     add_subdirectory(docs)
+endif()
+
+if(BUILD_PYTHON_BINDINGS)
+    add_subdirectory(bindings/python)
 endif()
 
 # Installation configuration
@@ -114,17 +118,21 @@ install(
 )
 
 # Configure protobuf for feedback data
+if(USE_SYSTEM_PROTOBUF)
+    find_package(Protobuf REQUIRED)
+else()
+    set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build tests" FORCE)
+    set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "Build examples" FORCE)
+    set(protobuf_WITH_ZLIB ON CACHE BOOL "Build with zlib support" FORCE)
+    FetchContent_MakeAvailable(protobuf)
+endif()
+
+# Add the generated proto files to xenocomm library
 set(FEEDBACK_PROTO_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/feedback_data.proto
 )
 
-protobuf_generate_cpp(FEEDBACK_PROTO_SRCS FEEDBACK_PROTO_HDRS ${FEEDBACK_PROTO_FILES})
-
-# Add the generated proto files to xenocomm library
-target_sources(xenocomm
-    PRIVATE
-        ${FEEDBACK_PROTO_SRCS}
-)
+protobuf_generate(LANGUAGE cpp TARGET xenocomm PROTOS ${FEEDBACK_PROTO_FILES})
 
 target_include_directories(xenocomm
     PRIVATE

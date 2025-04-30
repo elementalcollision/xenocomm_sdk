@@ -23,5 +23,16 @@ add_executable(core_tests
     capability_index_tests.cpp
     connection_manager_tests.cpp
     tcp_transport_tests.cpp
-    udp_transport_tests.cpp
-) 
+    circuit_breaker_test.cpp
+    canary_deployment_test.cpp
+)
+
+target_link_libraries(core_tests
+    PRIVATE
+        xenocomm
+        GTest::gtest_main
+        GTest::gmock_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(core_tests)

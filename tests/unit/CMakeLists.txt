@@ -25,4 +25,7 @@ endif()
 file(GLOB_RECURSE EXTENSIONS_TEST_SOURCES "extensions/*.cpp")
 if(EXTENSIONS_TEST_SOURCES)
     add_xenocomm_test(extensions_tests ${EXTENSIONS_TEST_SOURCES})
-endif() 
+endif()
+
+# Explicitly add EmergenceManager test as its own executable
+add_xenocomm_test(test_emergence_manager extensions/test_emergence_manager.cpp) 

@@ -1,0 +1,42 @@
+name: Memory Leak Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  memory-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest numpy
+    
+    - name: Build extension module (if needed)
+      run: |
+        pip install -e . || true
+    
+    - name: Run Python memory tests
+      run: |
+        python -m unittest bindings/python/tests/memory_test.py
+    
+    - name: Install Valgrind
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y valgrind
+    
+    - name: Run Valgrind memory leak tests
+      run: |
+        cd bindings/python/tests
+        bash run_valgrind_tests.sh 

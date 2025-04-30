@@ -1,0 +1,12 @@
+# Include C++ source and header files
+recursive-include src *.cpp *.hpp *.h
+
+# Include documentation
+recursive-include docs *
+
+# Include examples
+recursive-include examples *
+
+# Include README and license
+include README.md
+include LICENSE 

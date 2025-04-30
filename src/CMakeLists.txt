@@ -1,3 +1,13 @@
+# Configure protobuf
+if(USE_SYSTEM_PROTOBUF)
+    find_package(Protobuf REQUIRED)
+else()
+    set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build tests" FORCE)
+    set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "Build examples" FORCE)
+    set(protobuf_WITH_ZLIB ON CACHE BOOL "Build with zlib support" FORCE)
+    FetchContent_MakeAvailable(protobuf)
+endif()
+
 # Add library target
 add_library(xenocomm
     # Core module sources
@@ -7,6 +17,7 @@ add_library(xenocomm
     core/data_transcoder.cpp
     core/transmission_manager.cpp
     core/feedback_loop.cpp
+    core/protocol_variant.cpp
 
     # Utils module sources
     utils/error_handling.cpp
@@ -18,6 +29,8 @@ add_library(xenocomm
     extensions/emergence_manager.cpp
     extensions/common_ground.cpp
     extensions/boundary_gateway.cpp
+    extensions/compatibility_checker.cpp
+    extensions/rollback_manager.cpp
 )
 
 # Add alias target for use in other parts of the build
@@ -48,6 +61,24 @@ target_compile_options(xenocomm
             /W4
             /WX
         >
+)
+
+# Link dependencies
+target_link_libraries(xenocomm
+    PUBLIC
+        protobuf::libprotobuf
+        nlohmann_json
+    PRIVATE
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        ZLIB::ZLIB
+)
+
+# Set properties
+set_target_properties(xenocomm PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    POSITION_INDEPENDENT_CODE ON
 )
 
 # Add subdirectories for modules
