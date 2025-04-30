@@ -1,0 +1,9 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+# Add package dependencies here as they are introduced
+# find_dependency(SomePackage)
+
+include("${CMAKE_CURRENT_LIST_DIR}/XenoCommTargets.cmake")
+
+check_required_components(XenoComm) 

@@ -1,0 +1,27 @@
+add_executable(core_tests
+    secure_transport_tests.cpp
+    security_manager_tests.cpp
+    authentication_tests.cpp
+    transmission_manager_tests.cpp
+    feedback_integration_tests.cpp
+    feedback_loop_tests.cpp
+    strategy_adapter_tests.cpp
+    error_correction_tests.cpp
+    compressed_state_adapter_tests.cpp
+    compression_algorithms_tests.cpp
+    adapter_registry_tests.cpp
+    ggwave_fsk_adapter_tests.cpp
+    binary_custom_adapter_tests.cpp
+    data_adapters_tests.cpp
+    data_transcoder_tests.cpp
+    negotiation_protocol_tests.cpp
+    parameter_fallback_tests.cpp
+    timeout_negotiation_protocol_tests.cpp
+    in_memory_capability_signaler_tests.cpp
+    capability_cache_tests.cpp
+    capability_signaler_tests.cpp
+    capability_index_tests.cpp
+    connection_manager_tests.cpp
+    tcp_transport_tests.cpp
+    udp_transport_tests.cpp
+) 

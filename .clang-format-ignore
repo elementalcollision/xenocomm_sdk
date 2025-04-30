@@ -1,0 +1,18 @@
+# Generated files
+build/
+cmake-build-*/
+
+# Third-party dependencies
+third_party/
+external/
+vendor/
+
+# Generated documentation
+docs/api/
+
+# Test data files
+tests/**/data/
+tests/**/fixtures/
+
+# Examples data
+examples/**/data/ 
