@@ -6,6 +6,10 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
+#include "xenocomm/core/version.h"
+#include <functional>
 
 namespace xenocomm {
 namespace core {
@@ -138,7 +142,7 @@ private:
     std::unordered_map<
         std::string,  // Capability name
         std::unordered_map<
-            CapabilityVersion,  // Version
+            Version,  // Version
             std::unordered_set<std::string>  // Agent IDs
         >
     > capabilityIndex_;

@@ -3,7 +3,7 @@ function(add_xenocomm_example EXAMPLE_NAME EXAMPLE_SOURCES)
     add_executable(${EXAMPLE_NAME} ${EXAMPLE_SOURCES})
     target_link_libraries(${EXAMPLE_NAME}
         PRIVATE
-            XenoComm::xenocomm
+            XenoComm::xenocomm_core
     )
     target_compile_features(${EXAMPLE_NAME} PRIVATE cxx_std_17)
     
@@ -24,4 +24,5 @@ function(add_xenocomm_example EXAMPLE_NAME EXAMPLE_SOURCES)
 endfunction()
 
 # Add example subdirectories
-add_subdirectory(basic) 
+add_subdirectory(basic)
+add_xenocomm_example(metrics_dashboard metrics_dashboard.cpp) 

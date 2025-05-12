@@ -1,12 +1,24 @@
 #pragma once
 
-#include "xenocomm/core/negotiation_protocol.h"
+// Include negotiation_protocol.h removed to break cycle
+#include "xenocomm/core/negotiation_preferences.h"
 #include <vector>
-#include <functional>
 #include <optional>
+#include <string>
+#include <map>
+#include <algorithm>
+#include <limits> // Required for numeric_limits
 
 namespace xenocomm {
 namespace core {
+
+// Forward declaration
+struct NegotiationPreferences;
+struct NegotiableParams; // Also forward declare if used in declarations
+enum class DataFormat : uint8_t; 
+
+enum class CompressionAlgorithm : uint8_t;
+enum class ErrorCorrectionScheme : uint8_t;
 
 /**
  * @brief Configuration for parameter fallback behavior.
@@ -19,61 +31,45 @@ struct FallbackConfig {
 };
 
 /**
- * @brief Represents a parameter preference with fallback options.
+ * @brief Manages fallback strategies for negotiable parameters.
  * 
- * @tparam T The parameter type (e.g., DataFormat, CompressionAlgorithm)
+ * Provides logic to determine acceptable parameter sets and generate
+ * fallback options when initial proposals are rejected during negotiation.
  */
-template<typename T>
-struct ParameterPreference {
-    T preferred;                     // Most preferred option
-    std::vector<T> fallbackOrder;    // Ordered list of fallback options
-    bool required{false};            // If true, negotiation fails if no option works
-    
+class ParameterFallback {
+public:
+    // Constructor takes const reference now
+    explicit ParameterFallback(const NegotiationPreferences& preferences);
+
     /**
-     * @brief Get the next fallback option after the current one.
-     * 
-     * @param current The current option in use
-     * @return The next fallback option if available, std::nullopt otherwise
+     * @brief Checks if a given set of parameters is acceptable according to preferences.
      */
-    std::optional<T> getNextFallback(const T& current) const {
-        auto it = std::find(fallbackOrder.begin(), fallbackOrder.end(), current);
-        if (it != fallbackOrder.end() && std::next(it) != fallbackOrder.end()) {
+    bool isAcceptable(const NegotiableParams& params) const;
+
+    /**
+     * @brief Generates the next fallback parameter set based on the current rejected set.
+     *
+     * Tries to find the next best combination according to preferences.
+     * Returns std::nullopt if no further fallback options are possible.
+     */
+    std::optional<NegotiableParams> getNextFallback(const NegotiableParams& current) const;
+
+private:
+    // Stores a const reference to avoid needing full definition here
+    const NegotiationPreferences& preferences_;
+
+    // Added declarations for helper functions
+    bool isFormatCompatibleWithCompression(DataFormat format, CompressionAlgorithm compression) const;
+    bool isFormatCompatibleWithErrorCorrection(DataFormat format, ErrorCorrectionScheme scheme) const;
+
+    template<typename T>
+    std::optional<T> getNextPreferred(const std::vector<T>& preferred, T current) const {
+        auto it = std::find(preferred.begin(), preferred.end(), current);
+        if (it != preferred.end() && std::next(it) != preferred.end()) {
             return *std::next(it);
         }
         return std::nullopt;
     }
-    
-    /**
-     * @brief Check if a given option is acceptable according to preferences.
-     * 
-     * @param option The option to check
-     * @return true if the option is either preferred or in fallback list
-     */
-    bool isAcceptable(const T& option) const {
-        if (option == preferred) return true;
-        return std::find(fallbackOrder.begin(), fallbackOrder.end(), option) != fallbackOrder.end();
-    }
-};
-
-/**
- * @brief Complete set of parameter preferences with fallback options.
- */
-struct NegotiationPreferences {
-    ParameterPreference<DataFormat> dataFormat{};
-    ParameterPreference<CompressionAlgorithm> compression{};
-    ParameterPreference<ErrorCorrectionScheme> errorCorrection{};
-    std::string minProtocolVersion{"1.0.0"};
-    
-    /**
-     * @brief Generate fallback parameters based on current parameters.
-     * 
-     * @param current Current parameters that were rejected
-     * @param attempt Current fallback attempt number
-     * @return Next set of parameters to try, or std::nullopt if no more fallbacks
-     */
-    std::optional<NegotiableParams> generateFallback(
-        const NegotiableParams& current,
-        std::size_t attempt) const;
 };
 
 /**

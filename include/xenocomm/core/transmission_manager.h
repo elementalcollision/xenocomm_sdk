@@ -2,7 +2,10 @@
 
 #include "xenocomm/core/connection_manager.hpp"
 #include "xenocomm/core/security_manager.h"
-#include "xenocomm/utils/result.h"
+#include "xenocomm/utils/result.hpp"
+#include "xenocomm/core/security_config.hpp"
+#include "xenocomm/core/error_correction.h"
+#include "xenocomm/core/error_correction_mode.h"
 #include <vector>
 #include <cstdint>
 #include <string>
@@ -18,17 +21,8 @@ namespace core {
 
 // Forward declaration
 class IErrorCorrection;
-
-/**
- * @brief Configuration for transmission security
- */
-struct SecurityConfig {
-    bool enable_encryption = false;
-    bool require_encryption = false;
-    bool verify_hostname = true;
-    std::string expected_hostname;
-    std::shared_ptr<SecurityManager> security_manager;
-};
+struct SecurityConfig; 
+class SecureContext; 
 
 /**
  * @brief Statistics about the secure connection
@@ -49,15 +43,6 @@ struct SecurityStats {
  */
 class TransmissionManager {
 public:
-    /**
-     * @brief Error correction modes supported by the TransmissionManager.
-     */
-    enum class ErrorCorrectionMode {
-        NONE,           ///< No error correction, raw data transfer
-        CHECKSUM_ONLY,  ///< Basic error detection using CRC32
-        REED_SOLOMON    ///< Full error correction using Reed-Solomon codes
-    };
-
     /**
      * @brief Configuration options for the TransmissionManager.
      */
@@ -114,7 +99,7 @@ public:
         FragmentConfig fragment_config;
         RetransmissionConfig retransmission_config;
         FlowControlConfig flow_control;
-        SecurityConfig security;  // Security configuration
+        xenocomm::core::SecurityConfig security;  // Security configuration
         uint8_t retry_attempts = 3;
         bool enable_logging = true;
     };
@@ -306,7 +291,6 @@ private:
     ConnectionManager& connection_manager_;
     Config config_;
     std::unique_ptr<IErrorCorrection> error_correction_;
-    std::unique_ptr<Logger> logger_;
 
     // Additional tracking for retransmission
     struct TransmissionState {
@@ -358,8 +342,8 @@ private:
     // Security-related private members
     std::shared_ptr<SecureContext> secure_context_;
     bool is_secure_channel_established_ = false;
-    SecurityStats stats_;
     mutable std::mutex security_mutex_;
+    mutable std::mutex mutex_;
 };
 
 } // namespace core

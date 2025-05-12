@@ -4,7 +4,7 @@ add_executable(basic_example
 
 target_link_libraries(basic_example
     PRIVATE
-        xenocomm
+        xenocomm_core
 )
 
 target_include_directories(basic_example

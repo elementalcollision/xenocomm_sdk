@@ -90,4 +90,12 @@ def test_connection_context_cleanup():
     with pytest.raises(Exception):  # Specific exception type from C++
         manager.check_status("conn1")
     with pytest.raises(Exception):  # Specific exception type from C++
-        manager.check_status("conn2") 
+        manager.check_status("conn2")
+
+def test_mock_connection_manager_fixture(mock_connection_manager):
+    """Test the mock_connection_manager fixture from conftest.py."""
+    # The mock should always report as connected
+    assert mock_connection_manager.is_connected() is True
+    # You can set up additional return values or side effects
+    mock_connection_manager.establish.return_value = "mock_conn"
+    assert mock_connection_manager.establish("test") == "mock_conn" 

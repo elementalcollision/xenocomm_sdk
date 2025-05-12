@@ -3,6 +3,8 @@
 #include "xenocomm/core/capability_signaler.h"
 #include "xenocomm/core/version.h"
 #include "type_converters.hpp"
+#include "xenocomm/core/in_memory_capability_signaler.h"
+#include "xenocomm/core/capability_cache.h"
 
 namespace py = pybind11;
 using namespace xenocomm::core;
@@ -41,8 +43,8 @@ py::object TypeConverter::to_python<Capability>(const Capability& cap) {
     if (cap.removal_version) {
         result["removal_version"] = TypeConverter::to_python(*cap.removal_version);
     }
-    if (!cap.replacement_capability.empty()) {
-        result["replacement_capability"] = cap.replacement_capability;
+    if (cap.replacement_capability && !cap.replacement_capability->empty()) {
+        result["replacement_capability"] = *cap.replacement_capability;
     }
     return result;
 }
@@ -59,22 +61,41 @@ Capability TypeConverter::from_python<Capability>(const py::object& obj) {
     if (dict.contains("is_deprecated")) {
         cap.is_deprecated = dict["is_deprecated"].cast<bool>();
     }
-    if (dict.contains("deprecated_since")) {
-        cap.deprecated_since = TypeConverter::from_python<CapabilityVersion>(dict["deprecated_since"]);
+    if (dict.contains("deprecated_since") && !dict["deprecated_since"].is_none()) {
+        cap.deprecated_since = std::make_optional(TypeConverter::from_python<Version>(dict["deprecated_since"]));
+    } else {
+        cap.deprecated_since = std::nullopt;
     }
-    if (dict.contains("removal_version")) {
-        cap.removal_version = TypeConverter::from_python<CapabilityVersion>(dict["removal_version"]);
+    if (dict.contains("removal_version") && !dict["removal_version"].is_none()) {
+        cap.removal_version = std::make_optional(TypeConverter::from_python<Version>(dict["removal_version"]));
+    } else {
+        cap.removal_version = std::nullopt;
     }
     if (dict.contains("replacement_capability")) {
-        cap.replacement_capability = dict["replacement_capability"].cast<std::string>();
+        auto val = dict["replacement_capability"].cast<std::string>();
+        if (!val.empty()) {
+            cap.replacement_capability = val;
+        } else {
+            cap.replacement_capability = std::nullopt;
+        }
     }
     return cap;
 }
 
 void init_capability_signaler(py::module_& m) {
-    // Register type converters
-    TypeConverter::register_converter<CapabilityVersion>(m);
-    TypeConverter::register_converter<Capability>(m);
+    // Bind CacheConfig struct
+    py::class_<CacheConfig>(m, "CacheConfig")
+        .def(py::init<>())
+        .def_readwrite("max_entries", &CacheConfig::max_entries)
+        .def_readwrite("ttl", &CacheConfig::ttl)
+        .def_readwrite("track_stats", &CacheConfig::track_stats)
+        .def("ttl_seconds", [](const CacheConfig& cfg) { return cfg.ttl.count(); })
+        .def("set_ttl_seconds", [](CacheConfig& cfg, int secs) { cfg.ttl = std::chrono::seconds(secs); })
+        .def("__repr__", [](const CacheConfig& cfg) {
+            return "<CacheConfig max_entries=" + std::to_string(cfg.max_entries) +
+                   " ttl=" + std::to_string(cfg.ttl.count()) +
+                   " track_stats=" + std::string(cfg.track_stats ? "True" : "False") + ">";
+        });
 
     // Bind CapabilityVersion struct with improved memory management
     py::class_<CapabilityVersion, std::shared_ptr<CapabilityVersion>>(m, "CapabilityVersion")
@@ -110,12 +131,12 @@ void init_capability_signaler(py::module_& m) {
         .def_property("deprecated_since",
             [](const Capability& cap) { return cap.deprecated_since ? TypeConverter::to_python(*cap.deprecated_since) : py::none(); },
             [](Capability& cap, const py::object& ver) { 
-                cap.deprecated_since = ver.is_none() ? std::nullopt : std::make_optional(TypeConverter::from_python<CapabilityVersion>(ver)); 
+                cap.deprecated_since = ver.is_none() ? std::nullopt : std::make_optional(TypeConverter::from_python<Version>(ver)); 
             })
         .def_property("removal_version",
             [](const Capability& cap) { return cap.removal_version ? TypeConverter::to_python(*cap.removal_version) : py::none(); },
             [](Capability& cap, const py::object& ver) { 
-                cap.removal_version = ver.is_none() ? std::nullopt : std::make_optional(TypeConverter::from_python<CapabilityVersion>(ver)); 
+                cap.removal_version = ver.is_none() ? std::nullopt : std::make_optional(TypeConverter::from_python<Version>(ver)); 
             })
         .def_readwrite("replacement_capability", &Capability::replacement_capability)
         .def("deprecate", &Capability::deprecate,
@@ -136,7 +157,6 @@ void init_capability_signaler(py::module_& m) {
 
     // Bind CapabilitySignaler class with improved memory management
     py::class_<CapabilitySignaler, std::shared_ptr<CapabilitySignaler>>(m, "CapabilitySignaler")
-        .def(py::init<>())
         .def("register_capability", 
             [](CapabilitySignaler& self, const std::string& agent_id, const py::object& capability) {
                 self.registerCapability(agent_id, TypeConverter::from_python<Capability>(capability));
@@ -185,4 +205,9 @@ void init_capability_signaler(py::module_& m) {
             },
             py::arg("agent_id"),
             "Get agent capabilities as binary data");
+
+    // Bind InMemoryCapabilitySignaler
+    py::class_<InMemoryCapabilitySignaler, CapabilitySignaler, std::shared_ptr<InMemoryCapabilitySignaler>>(m, "InMemoryCapabilitySignaler")
+        .def(py::init<const CacheConfig&>(), py::arg("cache_config"))
+        .def("get_stats", &InMemoryCapabilitySignaler::get_stats);
 } 

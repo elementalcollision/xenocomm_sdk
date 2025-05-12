@@ -17,7 +17,7 @@ CompatibilityChecker::CompatibilityChecker() {
     };
 }
 
-CompatibilityResult CompatibilityChecker::checkCompatibility(
+CompatibilityChecker::CompatibilityResult CompatibilityChecker::checkCompatibility(
     const ProtocolVariant& newVariant,
     const std::vector<ProtocolVariant>& activeVariants
 ) {

@@ -7,6 +7,9 @@
 #include <chrono>
 #include <optional>
 
+namespace xenocomm {
+namespace extensions {
+
 /**
  * @brief Enum for protocol variant status.
  */
@@ -223,4 +226,7 @@ private:
         const std::string& agentId,
         const ProtocolVariant& variant
     ) const;
-}; 
+};
+
+} // namespace extensions
+} // namespace xenocomm 

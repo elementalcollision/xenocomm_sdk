@@ -52,9 +52,4 @@ TEST_F(ConnectionManagerTest, GetActiveConnections) {
     EXPECT_TRUE(manager.getActiveConnections().empty());
     
     // TODO: Add tests for active connections once connection state management is implemented
-}
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 } 

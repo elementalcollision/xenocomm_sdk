@@ -1,5 +1,5 @@
+// #include "xenocomm/utils/logging.h"
 #include "xenocomm/core/feedback_loop.h"
-#include "xenocomm/utils/logging.h"
 #include "feedback_data.pb.h"
 #include <algorithm>
 #include <cmath>
@@ -66,7 +66,7 @@ namespace {
     std::chrono::system_clock::time_point protoToTimePoint(const Timestamp& proto) {
         auto duration = std::chrono::seconds(proto.seconds()) +
                        std::chrono::nanoseconds(proto.nanos());
-        return std::chrono::system_clock::time_point(duration);
+        return std::chrono::system_clock::time_point(std::chrono::duration_cast<std::chrono::system_clock::duration>(duration));
     }
 
     // Convert CommunicationOutcome to proto
@@ -378,7 +378,7 @@ struct FeedbackLoop::Impl {
             // Serialize to binary
             std::vector<uint8_t> serialized(data.ByteSizeLong());
             if (!data.SerializeToArray(serialized.data(), serialized.size())) {
-                return Result<void>::Error("Failed to serialize feedback data");
+                return Result<void>(std::string("Failed to serialize feedback data"));
             }
 
             // Compress if enabled
@@ -393,14 +393,14 @@ struct FeedbackLoop::Impl {
             // Write to file
             std::ofstream file(filename, std::ios::binary);
             if (!file) {
-                return Result<void>::Error("Failed to open file for writing: " + filename);
+                return Result<void>(std::string("Failed to open file for writing: " + filename));
             }
 
             file.write(reinterpret_cast<const char*>(serialized.data()), serialized.size());
             
-            return Result<void>::Success();
+            return Result<void>();
         } catch (const std::exception& e) {
-            return Result<void>::Error("Failed to save data: " + std::string(e.what()));
+            return Result<void>(std::string("Failed to save data: " + std::string(e.what())));
         }
     }
 
@@ -409,7 +409,7 @@ struct FeedbackLoop::Impl {
             // Read file
             std::ifstream file(filename, std::ios::binary | std::ios::ate);
             if (!file) {
-                return Result<void>::Error("Failed to open file for reading: " + filename);
+                return Result<void>(std::string("Failed to open file for reading: " + filename));
             }
 
             auto size = file.tellg();
@@ -428,12 +428,12 @@ struct FeedbackLoop::Impl {
             // Parse protobuf
             FeedbackData feedbackData;
             if (!feedbackData.ParseFromArray(data.data(), data.size())) {
-                return Result<void>::Error("Failed to parse feedback data");
+                return Result<void>(std::string("Failed to parse feedback data"));
             }
 
             // Version check
             if (feedbackData.version() > CURRENT_VERSION) {
-                return Result<void>::Error("Unsupported data version");
+                return Result<void>(std::string("Unsupported data version"));
             }
 
             // Clear existing data
@@ -456,9 +456,9 @@ struct FeedbackLoop::Impl {
                 }
             }
 
-            return Result<void>::Success();
+            return Result<void>();
         } catch (const std::exception& e) {
-            return Result<void>::Error("Failed to load data: " + std::string(e.what()));
+            return Result<void>(std::string("Failed to load data: " + std::string(e.what())));
         }
     }
 
@@ -477,9 +477,9 @@ struct FeedbackLoop::Impl {
                 timeIndex.add_file_offsets(i);
             }
 
-            return Result<void>::Success();
+            return Result<void>();
         } catch (const std::exception& e) {
-            return Result<void>::Error("Failed to update time index: " + std::string(e.what()));
+            return Result<void>(std::string("Failed to update time index: " + std::string(e.what())));
         }
     }
 
@@ -534,9 +534,9 @@ struct FeedbackLoop::Impl {
                 }
             }
 
-            return Result<void>::Success();
+            return Result<void>();
         } catch (const std::exception& e) {
-            return Result<void>::Error("Failed to clean up old data: " + std::string(e.what()));
+            return Result<void>(std::string("Failed to clean up old data: " + std::string(e.what())));
         }
     }
 };
@@ -546,11 +546,11 @@ FeedbackLoop::FeedbackLoop(const FeedbackLoopConfig& config)
     impl_->config = config;
 
     if (config.enablePersistence) {
-        std::filesystem::create_directories(config.storageDirectory);
+        std::filesystem::create_directories(config.persistence.dataDirectory);
     }
 
-    LOG_INFO("FeedbackLoop initialized with window size: " + 
-             std::to_string(config.metricsWindowSize.count()) + "s");
+    // LOG_INFO("FeedbackLoop initialized with window size: " + 
+    //          std::to_string(config.metricsWindowSize.count()) + "s");
 }
 
 FeedbackLoop::~FeedbackLoop() = default;
@@ -561,16 +561,16 @@ Result<void> FeedbackLoop::reportOutcome(const CommunicationOutcome& outcome) {
     try {
         impl_->outcomes.push_back(outcome);
         impl_->pruneOldData();
-        return Result<void>::ok();
+        return Result<void>();
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to report outcome: " + std::string(e.what()));
-        return Result<void>::error("Failed to report outcome: " + std::string(e.what()));
+        // LOG_ERROR("Failed to report outcome: " + std::string(e.what()));
+        return Result<void>(std::string("Failed to report outcome: " + std::string(e.what())));
     }
 }
 
 Result<void> FeedbackLoop::recordMetric(const std::string& metricName, double value) {
     if (metricName.empty()) {
-        return Result<void>::error("Metric name cannot be empty");
+        return Result<void>(std::string("Metric name cannot be empty"));
     }
 
     std::lock_guard<std::mutex> lock(impl_->mutex);
@@ -579,10 +579,10 @@ Result<void> FeedbackLoop::recordMetric(const std::string& metricName, double va
         impl_->metrics[metricName].push_back(
             {std::chrono::system_clock::now(), value});
         impl_->pruneOldData();
-        return Result<void>::ok();
+        return Result<void>();
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to record metric: " + std::string(e.what()));
-        return Result<void>::error("Failed to record metric: " + std::string(e.what()));
+        // LOG_ERROR("Failed to record metric: " + std::string(e.what()));
+        return Result<void>(std::string("Failed to record metric: " + std::string(e.what())));
     }
 }
 
@@ -610,11 +610,10 @@ Result<MetricsSummary> FeedbackLoop::getCurrentMetrics() const {
     try {
         std::vector<CommunicationOutcome> windowOutcomes(
             impl_->outcomes.begin(), impl_->outcomes.end());
-        return Result<MetricsSummary>::ok(impl_->calculateMetrics(windowOutcomes));
+        return Result<MetricsSummary>(impl_->calculateMetrics(windowOutcomes));
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to get current metrics: " + std::string(e.what()));
-        return Result<MetricsSummary>::error(
-            "Failed to get current metrics: " + std::string(e.what()));
+        // LOG_ERROR("Failed to get current metrics: " + std::string(e.what()));
+        return Result<MetricsSummary>(std::string("Failed to get current metrics: " + std::string(e.what())));
     }
 }
 
@@ -627,11 +626,10 @@ Result<std::vector<CommunicationOutcome>> FeedbackLoop::getRecentOutcomes(
         auto start = impl_->outcomes.size() > limit ?
             impl_->outcomes.end() - limit : impl_->outcomes.begin();
         recent.assign(start, impl_->outcomes.end());
-        return Result<std::vector<CommunicationOutcome>>::ok(std::move(recent));
+        return Result<std::vector<CommunicationOutcome>>(std::move(recent));
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to get recent outcomes: " + std::string(e.what()));
-        return Result<std::vector<CommunicationOutcome>>::error(
-            "Failed to get recent outcomes: " + std::string(e.what()));
+        // LOG_ERROR("Failed to get recent outcomes: " + std::string(e.what()));
+        return Result<std::vector<CommunicationOutcome>>(std::string("Failed to get recent outcomes: " + std::string(e.what())));
     }
 }
 
@@ -641,13 +639,12 @@ Result<double> FeedbackLoop::getMetricValue(const std::string& metricName) const
     try {
         auto it = impl_->metrics.find(metricName);
         if (it == impl_->metrics.end() || it->second.empty()) {
-            return Result<double>::error("Metric not found or no values available");
+            return Result<double>(std::string("Metric not found or no values available"));
         }
-        return Result<double>::ok(it->second.back().second);
+        return Result<double>(it->second.back().second);
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to get metric value: " + std::string(e.what()));
-        return Result<double>::error(
-            "Failed to get metric value: " + std::string(e.what()));
+        // LOG_ERROR("Failed to get metric value: " + std::string(e.what()));
+        return Result<double>(std::string("Failed to get metric value: " + std::string(e.what())));
     }
 }
 
@@ -666,16 +663,15 @@ Result<DetailedMetrics> FeedbackLoop::getDetailedMetrics() const {
     
     try {
         if (!impl_->config.enableDetailedAnalysis) {
-            return Result<DetailedMetrics>::error("Detailed analysis is disabled in configuration");
+            return Result<DetailedMetrics>(std::string("Detailed analysis is disabled in configuration"));
         }
 
         std::vector<CommunicationOutcome> windowOutcomes(
             impl_->outcomes.begin(), impl_->outcomes.end());
-        return Result<DetailedMetrics>::ok(impl_->calculateDetailedMetrics(windowOutcomes));
+        return Result<DetailedMetrics>(impl_->calculateDetailedMetrics(windowOutcomes));
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to calculate detailed metrics: " + std::string(e.what()));
-        return Result<DetailedMetrics>::error(
-            "Failed to calculate detailed metrics: " + std::string(e.what()));
+        // LOG_ERROR("Failed to calculate detailed metrics: " + std::string(e.what()));
+        return Result<DetailedMetrics>(std::string("Failed to calculate detailed metrics: " + std::string(e.what())));
     }
 }
 
@@ -688,11 +684,10 @@ Result<DistributionStats> FeedbackLoop::analyzeLatencyDistribution() const {
         for (const auto& outcome : impl_->outcomes) {
             latencies.push_back(outcome.latency.count());
         }
-        return Result<DistributionStats>::ok(impl_->calculateDistributionStats(latencies));
+        return Result<DistributionStats>(impl_->calculateDistributionStats(latencies));
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to analyze latency distribution: " + std::string(e.what()));
-        return Result<DistributionStats>::error(
-            "Failed to analyze latency distribution: " + std::string(e.what()));
+        // LOG_ERROR("Failed to analyze latency distribution: " + std::string(e.what()));
+        return Result<DistributionStats>(std::string("Failed to analyze latency distribution: " + std::string(e.what())));
     }
 }
 
@@ -708,11 +703,10 @@ Result<DistributionStats> FeedbackLoop::analyzeThroughputDistribution() const {
                 throughputs.push_back(outcome.bytesTransferred / seconds);
             }
         }
-        return Result<DistributionStats>::ok(impl_->calculateDistributionStats(throughputs));
+        return Result<DistributionStats>(impl_->calculateDistributionStats(throughputs));
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to analyze throughput distribution: " + std::string(e.what()));
-        return Result<DistributionStats>::error(
-            "Failed to analyze throughput distribution: " + std::string(e.what()));
+        // LOG_ERROR("Failed to analyze throughput distribution: " + std::string(e.what()));
+        return Result<DistributionStats>(std::string("Failed to analyze throughput distribution: " + std::string(e.what())));
     }
 }
 
@@ -722,7 +716,7 @@ Result<TimeSeriesAnalysis> FeedbackLoop::analyzeLatencyTrend() const {
     try {
         std::vector<std::pair<double, double>> timeValuePairs;
         if (impl_->outcomes.empty()) {
-            return Result<TimeSeriesAnalysis>::ok(TimeSeriesAnalysis{});
+            return Result<TimeSeriesAnalysis>(TimeSeriesAnalysis{});
         }
 
         double baseTime = std::chrono::duration<double>(
@@ -734,11 +728,10 @@ Result<TimeSeriesAnalysis> FeedbackLoop::analyzeLatencyTrend() const {
             timeValuePairs.emplace_back(time, outcome.latency.count());
         }
 
-        return Result<TimeSeriesAnalysis>::ok(impl_->analyzeTimeSeries(timeValuePairs));
+        return Result<TimeSeriesAnalysis>(impl_->analyzeTimeSeries(timeValuePairs));
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to analyze latency trend: " + std::string(e.what()));
-        return Result<TimeSeriesAnalysis>::error(
-            "Failed to analyze latency trend: " + std::string(e.what()));
+        // LOG_ERROR("Failed to analyze latency trend: " + std::string(e.what()));
+        return Result<TimeSeriesAnalysis>(std::string("Failed to analyze latency trend: " + std::string(e.what())));
     }
 }
 
@@ -752,11 +745,10 @@ Result<std::map<std::string, uint32_t>> FeedbackLoop::getErrorTypeDistribution()
                 distribution[outcome.errorType]++;
             }
         }
-        return Result<std::map<std::string, uint32_t>>::ok(distribution);
+        return Result<std::map<std::string, uint32_t>>(distribution);
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to get error type distribution: " + std::string(e.what()));
-        return Result<std::map<std::string, uint32_t>>::error(
-            "Failed to get error type distribution: " + std::string(e.what()));
+        // LOG_ERROR("Failed to get error type distribution: " + std::string(e.what()));
+        return Result<std::map<std::string, uint32_t>>(std::string("Failed to get error type distribution: " + std::string(e.what())));
     }
 }
 
@@ -766,12 +758,11 @@ Result<std::vector<CommunicationOutcome>> FeedbackLoop::getOutliers() const {
     try {
         std::vector<CommunicationOutcome> windowOutcomes(
             impl_->outcomes.begin(), impl_->outcomes.end());
-        return Result<std::vector<CommunicationOutcome>>::ok(
+        return Result<std::vector<CommunicationOutcome>>(
             impl_->findOutliers(windowOutcomes));
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to find outliers: " + std::string(e.what()));
-        return Result<std::vector<CommunicationOutcome>>::error(
-            "Failed to find outliers: " + std::string(e.what()));
+        // LOG_ERROR("Failed to find outliers: " + std::string(e.what()));
+        return Result<std::vector<CommunicationOutcome>>(std::string("Failed to find outliers: " + std::string(e.what())));
     }
 }
 
@@ -800,13 +791,13 @@ Result<void> FeedbackLoop::createBackup() const {
         auto backupFile = backupDir / ("feedback_data_" + std::to_string(timestamp) + ".backup");
         auto result = impl_->saveDataToFile(backupFile.string());
         
-        if (result.isSuccess()) {
+        if (result.has_value()) {
             impl_->lastBackupTime = now;
         }
         
         return result;
     } catch (const std::exception& e) {
-        return Result<void>::Error("Failed to create backup: " + std::string(e.what()));
+        return Result<void>(std::string("Failed to create backup: " + std::string(e.what())));
     }
 }
 
@@ -829,10 +820,9 @@ Result<std::vector<std::string>> FeedbackLoop::listBackups() const {
             }
         }
         
-        return Result<std::vector<std::string>>::Success(std::move(backups));
+        return Result<std::vector<std::string>>(std::move(backups));
     } catch (const std::exception& e) {
-        return Result<std::vector<std::string>>::Error(
-            "Failed to list backups: " + std::string(e.what()));
+        return Result<std::vector<std::string>>(std::string("Failed to list backups: " + std::string(e.what())));
     }
 }
 
@@ -846,7 +836,7 @@ Result<void> FeedbackLoop::compactStorage() {
     try {
         // Update time index
         auto result = impl_->updateTimeIndex();
-        if (!result.isSuccess()) {
+        if (!result.has_value()) {
             return result;
         }
 
@@ -858,7 +848,7 @@ Result<void> FeedbackLoop::compactStorage() {
 
         return result;
     } catch (const std::exception& e) {
-        return Result<void>::Error("Failed to compact storage: " + std::string(e.what()));
+        return Result<void>(std::string("Failed to compact storage: " + std::string(e.what())));
     }
 }
 
@@ -876,23 +866,22 @@ Result<uint64_t> FeedbackLoop::getStorageSize() const {
             }
         }
         
-        return Result<uint64_t>::Success(totalSize);
+        return Result<uint64_t>(totalSize);
     } catch (const std::exception& e) {
-        return Result<uint64_t>::Error(
-            "Failed to get storage size: " + std::string(e.what()));
+        return Result<uint64_t>(std::string("Failed to get storage size: " + std::string(e.what())));
     }
 }
 
 Result<std::chrono::system_clock::time_point> FeedbackLoop::getLastBackupTime() const {
     std::lock_guard<std::mutex> lock(impl_->mutex);
-    return Result<std::chrono::system_clock::time_point>::Success(impl_->lastBackupTime);
+    return Result<std::chrono::system_clock::time_point>(impl_->lastBackupTime);
 }
 
 Result<std::chrono::system_clock::time_point> FeedbackLoop::getOldestDataTime() const {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     try {
         if (impl_->outcomes.empty()) {
-            return Result<std::chrono::system_clock::time_point>::Error("No data available");
+            return Result<std::chrono::system_clock::time_point>(std::string("No data available"));
         }
         
         auto oldestTime = impl_->outcomes.front().timestamp;
@@ -902,10 +891,9 @@ Result<std::chrono::system_clock::time_point> FeedbackLoop::getOldestDataTime() 
             }
         }
         
-        return Result<std::chrono::system_clock::time_point>::Success(oldestTime);
+        return Result<std::chrono::system_clock::time_point>(oldestTime);
     } catch (const std::exception& e) {
-        return Result<std::chrono::system_clock::time_point>::Error(
-            "Failed to get oldest data time: " + std::string(e.what()));
+        return Result<std::chrono::system_clock::time_point>(std::string("Failed to get oldest data time: " + std::string(e.what())));
     }
 }
 
@@ -920,10 +908,9 @@ Result<std::vector<CommunicationOutcome>> FeedbackLoop::getOutcomesByTimeRange(
                 results.push_back(outcome);
             }
         }
-        return Result<std::vector<CommunicationOutcome>>::Success(std::move(results));
+        return Result<std::vector<CommunicationOutcome>>(std::move(results));
     } catch (const std::exception& e) {
-        return Result<std::vector<CommunicationOutcome>>::Error(
-            "Failed to get outcomes by time range: " + std::string(e.what()));
+        return Result<std::vector<CommunicationOutcome>>(std::string("Failed to get outcomes by time range: " + std::string(e.what())));
     }
 }
 
@@ -936,8 +923,7 @@ FeedbackLoop::getMetricHistory(
     try {
         auto it = impl_->metrics.find(metricName);
         if (it == impl_->metrics.end()) {
-            return Result<std::vector<std::pair<std::chrono::system_clock::time_point, double>>>::Error(
-                "Metric not found: " + metricName);
+            return Result<std::vector<std::pair<std::chrono::system_clock::time_point, double>>>(std::string("Metric not found: " + metricName));
         }
 
         std::vector<std::pair<std::chrono::system_clock::time_point, double>> results;
@@ -946,11 +932,9 @@ FeedbackLoop::getMetricHistory(
                 results.emplace_back(time, value);
             }
         }
-        return Result<std::vector<std::pair<std::chrono::system_clock::time_point, double>>>::Success(
-            std::move(results));
+        return Result<std::vector<std::pair<std::chrono::system_clock::time_point, double>>>(std::move(results));
     } catch (const std::exception& e) {
-        return Result<std::vector<std::pair<std::chrono::system_clock::time_point, double>>>::Error(
-            "Failed to get metric history: " + std::string(e.what()));
+        return Result<std::vector<std::pair<std::chrono::system_clock::time_point, double>>>(std::string("Failed to get metric history: " + std::string(e.what())));
     }
 }
 } // namespace xenocomm 

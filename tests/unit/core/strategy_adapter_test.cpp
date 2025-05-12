@@ -5,6 +5,7 @@
 #include <thread>
 
 using namespace xenocomm;
+using namespace xenocomm::core;
 using Catch::Matchers::WithinRel;
 
 class MockFeedbackLoop : public FeedbackLoop {
@@ -13,7 +14,7 @@ public:
 
     Result<DetailedMetrics> getDetailedMetrics() const override {
         if (shouldFailMetrics) {
-            return Result<DetailedMetrics>::error("Mock error");
+            return Result<DetailedMetrics>("Mock error");
         }
 
         DetailedMetrics metrics;
@@ -29,7 +30,7 @@ public:
             metrics.errorTypeFrequency = mockErrorTypes;
         }
 
-        return Result<DetailedMetrics>::ok(metrics);
+        return metrics;
     }
 
     // Mock control
@@ -44,27 +45,124 @@ public:
     std::map<std::string, uint32_t> mockErrorTypes;
 };
 
-TEST_CASE("StrategyAdapter basic functionality", "[strategy_adapter]") {
-    auto feedback = std::make_shared<MockFeedbackLoop>();
-    StrategyAdapter adapter(feedback);
-
-    SECTION("Default thresholds") {
-        const auto& thresholds = adapter.getAdaptationThresholds();
-        REQUIRE_THAT(thresholds.minSuccessRate, WithinRel(0.95));
-        REQUIRE_THAT(thresholds.maxLatencyMs, WithinRel(200.0));
-        REQUIRE_THAT(thresholds.minThroughputBps, WithinRel(1024.0));
-        REQUIRE_THAT(thresholds.maxErrorRate, WithinRel(0.05));
+// Mock MetricsProvider for testing
+class MockMetricsProvider : public MetricsProvider {
+public:
+    // Return an error for detailed metrics
+    Result<DetailedMetrics> getDetailedMetrics() const {
+        if (shouldReturnError) {
+            return Result<DetailedMetrics>("Mock error");
+        }
+        
+        DetailedMetrics metrics;
+        metrics.basic.totalTransactions = 100;
+        metrics.basic.successRate = 0.92;
+        metrics.basic.errorRate = 0.08;
+        metrics.basic.throughputBytesPerSecond = 1024 * 10;
+        metrics.basic.avgLatencyMs = 50.0;
+        
+        metrics.latencyDistribution[0] = 0.1;   // 0-10ms
+        metrics.latencyDistribution[10] = 0.3;  // 10-20ms
+        metrics.latencyDistribution[20] = 0.4;  // 20-50ms
+        metrics.latencyDistribution[50] = 0.2;  // 50-100ms
+        
+        metrics.networkCondition = NetworkCondition::EXCELLENT;
+        metrics.networkStability = 0.95;
+        metrics.packetLossRate = 0.02;
+        metrics.retransmissionRate = 0.03;
+        
+        return metrics;
     }
+    
+    bool shouldReturnError = false;
+};
 
-    SECTION("Custom thresholds") {
-        AdaptationThresholds custom;
-        custom.minSuccessRate = 0.99;
-        custom.maxLatencyMs = 100.0;
-        adapter.setAdaptationThresholds(custom);
+// Mock StrategyProvider for testing
+class MockStrategyProvider : public StrategyProvider {
+public:
+    Result<StrategyRecommendation> recommendStrategy(const DetailedMetrics& metrics) override {
+        if (shouldReturnError) {
+            return Result<StrategyRecommendation>("Mock strategy error");
+        }
+        
+        StrategyRecommendation recommendation;
+        recommendation.transportConfig.compress = metrics.networkCondition == NetworkCondition::POOR;
+        recommendation.transportConfig.errorCorrection = 
+            metrics.packetLossRate > 0.05 ? 
+            core::ErrorCorrectionMode::REED_SOLOMON : 
+            core::ErrorCorrectionMode::NONE;
+        
+        recommendation.transportConfig.fragmentSize = metrics.networkCondition == NetworkCondition::EXCELLENT ? 
+            8192 : 1024;
+            
+        return recommendation;
+    }
+    
+    bool shouldReturnError = false;
+};
 
-        const auto& thresholds = adapter.getAdaptationThresholds();
-        REQUIRE_THAT(thresholds.minSuccessRate, WithinRel(0.99));
-        REQUIRE_THAT(thresholds.maxLatencyMs, WithinRel(100.0));
+TEST_CASE("StrategyAdapter basic functionality", "[strategy_adapter]") {
+    auto metricsProvider = std::make_shared<MockMetricsProvider>();
+    auto strategyProvider = std::make_shared<MockStrategyProvider>();
+    
+    StrategyAdapter adapter(metricsProvider, strategyProvider);
+    
+    SECTION("Successful recommendation") {
+        auto result = adapter.getRecommendedStrategy();
+        REQUIRE(result.has_value());
+        
+        const auto& config = result.value().transportConfig;
+        REQUIRE_FALSE(config.compress);
+        REQUIRE(config.errorCorrection == core::ErrorCorrectionMode::NONE);
+        REQUIRE(config.fragmentSize == 8192);
+    }
+    
+    SECTION("Metrics provider error handling") {
+        metricsProvider->shouldReturnError = true;
+        auto result = adapter.getRecommendedStrategy();
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(result.error().find("Mock error") != std::string::npos);
+    }
+    
+    SECTION("Strategy provider error handling") {
+        strategyProvider->shouldReturnError = true;
+        auto result = adapter.getRecommendedStrategy();
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(result.error().find("Mock strategy error") != std::string::npos);
+    }
+}
+
+TEST_CASE("StrategyAdapter with configuration", "[strategy_adapter]") {
+    auto metricsProvider = std::make_shared<MockMetricsProvider>();
+    auto strategyProvider = std::make_shared<MockStrategyProvider>();
+    
+    StrategyAdapterConfig config;
+    config.adaptationInterval = std::chrono::seconds(10);
+    config.metricAveragingWindow = std::chrono::seconds(60);
+    config.enableAutomaticAdaptation = true;
+    
+    StrategyAdapter adapter(metricsProvider, strategyProvider, config);
+    
+    SECTION("Configuration properties") {
+        auto adapterConfig = adapter.getConfig();
+        REQUIRE(adapterConfig.adaptationInterval == std::chrono::seconds(10));
+        REQUIRE(adapterConfig.metricAveragingWindow == std::chrono::seconds(60));
+        REQUIRE(adapterConfig.enableAutomaticAdaptation);
+    }
+    
+    SECTION("Update configuration") {
+        StrategyAdapterConfig newConfig;
+        newConfig.adaptationInterval = std::chrono::seconds(30);
+        newConfig.metricAveragingWindow = std::chrono::seconds(300);
+        newConfig.enableAutomaticAdaptation = false;
+        
+        auto result = adapter.updateConfig(newConfig);
+        REQUIRE(result.has_value());
+        
+        auto updatedConfig = adapter.getConfig();
+        REQUIRE(updatedConfig.adaptationInterval == std::chrono::seconds(30));
+        REQUIRE(updatedConfig.metricAveragingWindow == std::chrono::seconds(300));
+        REQUIRE_FALSE(updatedConfig.enableAutomaticAdaptation);
     }
 }
 
@@ -79,7 +177,7 @@ TEST_CASE("StrategyAdapter recommendations", "[strategy_adapter]") {
         feedback->mockErrorRate = 0.02;
 
         auto result = adapter.evaluateAndRecommend();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE_THAT(result.value().confidenceScore, WithinRel(1.0, 0.1));
     }
 
@@ -90,7 +188,7 @@ TEST_CASE("StrategyAdapter recommendations", "[strategy_adapter]") {
         feedback->mockErrorRate = 0.15;
 
         auto result = adapter.evaluateAndRecommend();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE_THAT(result.value().confidenceScore, WithinRel(0.5, 0.1));
 
         const auto& config = result.value().config;
@@ -103,7 +201,7 @@ TEST_CASE("StrategyAdapter recommendations", "[strategy_adapter]") {
         feedback->mockTotalTransactions = 10; // Below minimum required
 
         auto result = adapter.evaluateAndRecommend();
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error().find("Insufficient") != std::string::npos);
     }
 
@@ -111,7 +209,7 @@ TEST_CASE("StrategyAdapter recommendations", "[strategy_adapter]") {
         feedback->shouldFailMetrics = true;
 
         auto result = adapter.evaluateAndRecommend();
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error().find("Failed to get metrics") != std::string::npos);
     }
 }
@@ -124,7 +222,7 @@ TEST_CASE("StrategyAdapter A/B testing", "[strategy_adapter]") {
         // Start test
         auto result = adapter.startABTest("strategy_a", "strategy_b", 
                                         std::chrono::seconds(10));
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
 
         // Record some outcomes
         CommunicationOutcome goodOutcome{
@@ -137,14 +235,14 @@ TEST_CASE("StrategyAdapter A/B testing", "[strategy_adapter]") {
         };
 
         result = adapter.recordABTestOutcome("strategy_a", goodOutcome);
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         result = adapter.recordABTestOutcome("strategy_b", badOutcome);
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
 
         // Try to start another test (should fail)
         result = adapter.startABTest("strategy_c", "strategy_d", 
                                    std::chrono::seconds(10));
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error().find("already in progress") != std::string::npos);
 
         // Wait for test to complete
@@ -152,7 +250,7 @@ TEST_CASE("StrategyAdapter A/B testing", "[strategy_adapter]") {
 
         // Get results
         auto testResult = adapter.getABTestResults();
-        REQUIRE(testResult.is_ok());
+        REQUIRE(testResult.has_value());
         REQUIRE(testResult.value().recommendedStrategy == "strategy_a");
         REQUIRE(testResult.value().isSignificant);
     }
@@ -160,7 +258,7 @@ TEST_CASE("StrategyAdapter A/B testing", "[strategy_adapter]") {
     SECTION("Invalid strategy name") {
         auto result = adapter.startABTest("strategy_a", "strategy_b", 
                                         std::chrono::seconds(10));
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
 
         CommunicationOutcome outcome{
             true, std::chrono::microseconds(100), 1024, 0, 0, "",
@@ -168,7 +266,7 @@ TEST_CASE("StrategyAdapter A/B testing", "[strategy_adapter]") {
         };
 
         result = adapter.recordABTestOutcome("invalid_strategy", outcome);
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error().find("Unknown strategy") != std::string::npos);
     }
 }
@@ -181,7 +279,7 @@ TEST_CASE("StrategyAdapter performance insights", "[strategy_adapter]") {
         feedback->mockLatencyTrendSlope = 0.2; // Increasing trend
         
         auto result = adapter.getPerformanceInsights();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE(std::find(result.value().begin(), result.value().end(),
                          "Latency is showing an increasing trend") != 
                 result.value().end());
@@ -192,7 +290,7 @@ TEST_CASE("StrategyAdapter performance insights", "[strategy_adapter]") {
         feedback->mockErrorTypes["connection_reset"] = 5;
 
         auto result = adapter.getPerformanceInsights();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE(std::find_if(result.value().begin(), result.value().end(),
                             [](const std::string& s) {
                                 return s.find("timeout") != std::string::npos;
@@ -203,7 +301,7 @@ TEST_CASE("StrategyAdapter performance insights", "[strategy_adapter]") {
         feedback->mockThroughputIsStationary = false;
 
         auto result = adapter.getPerformanceInsights();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE(std::find(result.value().begin(), result.value().end(),
                          "Throughput shows significant variability") != 
                 result.value().end());
@@ -221,7 +319,7 @@ TEST_CASE("StrategyAdapter strategy effectiveness", "[strategy_adapter]") {
         feedback->mockErrorRate = 0.03;
 
         auto result = adapter.getStrategyEffectiveness();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         
         const auto& scores = result.value();
         REQUIRE_THAT(scores.at("success_rate"), WithinRel(0.95));
@@ -241,7 +339,7 @@ TEST_CASE("StrategyAdapter adaptation triggers", "[strategy_adapter]") {
         feedback->mockTotalTransactions = 1000;
 
         auto result = adapter.shouldAdaptStrategy(feedback->getDetailedMetrics().value());
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE(result.value());
     }
 
@@ -251,7 +349,7 @@ TEST_CASE("StrategyAdapter adaptation triggers", "[strategy_adapter]") {
         feedback->mockTotalTransactions = 1000;
 
         auto result = adapter.shouldAdaptStrategy(feedback->getDetailedMetrics().value());
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE_FALSE(result.value());
     }
 
@@ -259,7 +357,7 @@ TEST_CASE("StrategyAdapter adaptation triggers", "[strategy_adapter]") {
         feedback->mockTotalTransactions = 10;
 
         auto result = adapter.shouldAdaptStrategy(feedback->getDetailedMetrics().value());
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE_FALSE(result.value());
     }
 }
@@ -273,7 +371,7 @@ TEST_CASE("StrategyAdapter optimal configuration", "[strategy_adapter]") {
         feedback->mockTotalTransactions = 1000;
 
         auto result = adapter.getOptimalConfig(feedback->getDetailedMetrics().value());
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         
         const auto& config = result.value();
         REQUIRE(config.errorCorrection == ErrorCorrectionMode::REED_SOLOMON);
@@ -287,7 +385,7 @@ TEST_CASE("StrategyAdapter optimal configuration", "[strategy_adapter]") {
         feedback->mockTotalTransactions = 1000;
 
         auto result = adapter.getOptimalConfig(feedback->getDetailedMetrics().value());
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         
         const auto& config = result.value();
         REQUIRE(config.fragmentSize < 1024); // Should be reduced
@@ -298,7 +396,7 @@ TEST_CASE("StrategyAdapter optimal configuration", "[strategy_adapter]") {
         feedback->mockTotalTransactions = 1000;
 
         auto result = adapter.getOptimalConfig(feedback->getDetailedMetrics().value());
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         
         const auto& config = result.value();
         REQUIRE(config.fragmentSize > 1024); // Should be increased

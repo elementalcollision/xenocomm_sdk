@@ -175,6 +175,18 @@ public:
     void setErrorCallback(std::function<void(TransportError, const std::string&)> callback) override;
     bool checkHealth() override;
 
+    // Implementations for missing TransportProtocol pure virtuals
+    bool getPeerAddress(std::string& address, uint16_t& port) override;
+    int getSocketFd() const override;
+    bool setNonBlocking(bool nonBlocking) override;
+    bool setReceiveTimeout(const std::chrono::milliseconds& timeout) override;
+    bool setSendTimeout(const std::chrono::milliseconds& timeout) override;
+    bool setKeepAlive(bool enable) override;
+    bool setTcpNoDelay(bool enable) override; // Typically no-op for UDP
+    bool setReuseAddress(bool enable) override;
+    bool setReceiveBufferSize(size_t size) override;
+    bool setSendBufferSize(size_t size) override;
+
 private:
     /**
      * @brief Parse endpoint string into host and port
@@ -253,29 +265,17 @@ private:
     void updateState(ConnectionState newState);
 
     /**
-     * @brief Set error state with code and message
+     * @brief Set the last error code and details
+     * 
+     * @param code Transport error code
+     * @param message Error message details
      */
     void setError(TransportError code, const std::string& message);
-
-    /**
-     * @brief Perform health check operations
-     */
-    bool performHealthCheck();
-
-    /**
-     * @brief Start health monitoring if enabled
-     */
-    void startHealthMonitoring();
-
-    /**
-     * @brief Stop health monitoring
-     */
-    void stopHealthMonitoring();
-
-    // Health monitoring functions (Corrected Declarations)
+    
+    // Health monitoring functions
     void startHealthMonitor();
     void stopHealthMonitor();
-    bool performHealthCheck();
+    bool performHealthCheck(); // Ensure only one instance of this remains
 
     std::atomic<bool> connected_{false};
     mutable std::mutex mutex_;

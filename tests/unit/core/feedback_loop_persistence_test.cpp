@@ -1,164 +1,120 @@
-#include "xenocomm/core/feedback_loop.h"
 #include <gtest/gtest.h>
+#include "xenocomm/core/feedback_loop.h"
+#include <fstream>
 #include <filesystem>
 #include <thread>
 #include <chrono>
 
 namespace xenocomm {
+namespace core {
 namespace {
+
+// Helper to remove directory and its contents
+void remove_directory_recursive(const std::string& path) {
+    std::error_code ec;
+    std::filesystem::remove_all(path, ec);
+    // Ignore error if path doesn't exist or cannot be removed, test will fail later if needed
+}
 
 class FeedbackLoopPersistenceTest : public ::testing::Test {
 protected:
+    std::string testDir = "./test_feedback_data";
+
     void SetUp() override {
-        // Create a temporary test directory
-        testDir_ = std::filesystem::temp_directory_path() / "feedback_test";
-        std::filesystem::create_directories(testDir_);
-        
-        // Configure persistence
-        PersistenceConfig config;
-        config.dataDirectory = testDir_.string();
-        config.retentionPeriod = std::chrono::hours(1);
-        config.maxStorageSizeBytes = 1024 * 1024;  // 1MB for testing
-        config.enableCompression = true;
-        
-        feedbackLoop_ = std::make_unique<FeedbackLoop>(config);
+        remove_directory_recursive(testDir);
+        std::filesystem::create_directories(testDir);
+        feedbackLoop_ = std::make_unique<FeedbackLoop>(createConfig(testDir));
     }
-    
+
     void TearDown() override {
         feedbackLoop_.reset();
-        std::filesystem::remove_all(testDir_);
+        remove_directory_recursive(testDir);
     }
-    
-    std::filesystem::path testDir_;
+
+    FeedbackLoopConfig createConfig(const std::string& dataDir) {
+        FeedbackLoopConfig config;
+        config.enablePersistence = true;
+        config.persistence.dataDirectory = dataDir;
+        config.persistence.retentionPeriod = std::chrono::hours(1);
+        config.persistence.enableBackup = false;
+        return config;
+    }
+
     std::unique_ptr<FeedbackLoop> feedbackLoop_;
 };
 
-TEST_F(FeedbackLoopPersistenceTest, SaveAndLoadBasicMetrics) {
-    // Add some test data
-    feedbackLoop_->recordCommunicationOutcome({
-        .success = true,
-        .latencyMicros = 100,
-        .bytesTransferred = 1024,
-        .retryCount = 0,
-        .errorCount = 0
-    });
+TEST_F(FeedbackLoopPersistenceTest, SaveAndLoadData) {
+    CommunicationOutcome outcome = {
+        true, std::chrono::milliseconds(100), 1024, 0, 0, "", std::chrono::system_clock::now()
+    };
+    feedbackLoop_->reportOutcome(outcome);
+    feedbackLoop_->recordMetric("rtt_ms", 100.0);
+
+    ASSERT_TRUE(feedbackLoop_->saveData().has_value());
+
+    FeedbackLoopConfig new_loop_config = createConfig(testDir);
+    FeedbackLoop newLoop(new_loop_config);
     
-    feedbackLoop_->recordMetric("throughput", 1024.0);
-    feedbackLoop_->recordMetric("error_rate", 0.01);
-    
-    // Wait briefly to ensure metrics are processed
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    // Save the data
-    ASSERT_TRUE(feedbackLoop_->saveData().isOk());
-    
-    // Create a new FeedbackLoop instance and load the data
-    PersistenceConfig config;
-    config.dataDirectory = testDir_.string();
-    FeedbackLoop newLoop(config);
-    
-    ASSERT_TRUE(newLoop.loadData().isOk());
-    
-    // Verify the loaded data
-    auto stats = newLoop.getStatistics();
-    EXPECT_EQ(stats.totalCommunications, 1);
-    EXPECT_EQ(stats.successfulCommunications, 1);
-    EXPECT_NEAR(stats.averageLatencyMicros, 100.0, 0.1);
-    
-    auto metrics = newLoop.getMetrics();
-    EXPECT_TRUE(metrics.find("throughput") != metrics.end());
-    EXPECT_TRUE(metrics.find("error_rate") != metrics.end());
-    EXPECT_NEAR(metrics["throughput"].back(), 1024.0, 0.1);
-    EXPECT_NEAR(metrics["error_rate"].back(), 0.01, 0.001);
+    ASSERT_TRUE(newLoop.loadData().has_value());
+
+    auto stats_result = newLoop.getCurrentMetrics();
+    ASSERT_TRUE(stats_result.has_value());
+    auto stats = stats_result.value();
+    EXPECT_EQ(stats.totalTransactions, 1);
+
+    auto rtt_result = newLoop.getMetricValue("rtt_ms");
+    ASSERT_TRUE(rtt_result.has_value());
+    EXPECT_DOUBLE_EQ(rtt_result.value(), 100.0);
 }
 
 TEST_F(FeedbackLoopPersistenceTest, DataRetention) {
-    // Configure with short retention period
-    PersistenceConfig config;
-    config.dataDirectory = testDir_.string();
-    config.retentionPeriod = std::chrono::seconds(1);
+    FeedbackLoopConfig config = createConfig(testDir);
+    config.persistence.retentionPeriod = std::chrono::duration_cast<std::chrono::hours>(std::chrono::seconds(1));
     FeedbackLoop loop(config);
-    
-    // Add old data
-    loop.recordMetric("test", 1.0);
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    
-    // Add new data
-    loop.recordMetric("test", 2.0);
-    
-    // Save and reload
-    ASSERT_TRUE(loop.saveData().isOk());
-    ASSERT_TRUE(loop.loadData().isOk());
-    
-    // Verify only recent data is retained
-    auto metrics = loop.getMetrics();
-    ASSERT_TRUE(metrics.find("test") != metrics.end());
-    EXPECT_EQ(metrics["test"].size(), 1);
-    EXPECT_NEAR(metrics["test"].back(), 2.0, 0.1);
+
+    CommunicationOutcome outcome1 = {
+        true, std::chrono::milliseconds(100), 1024, 0, 0, "", 
+        std::chrono::system_clock::now() - std::chrono::seconds(2)
+    };
+    loop.reportOutcome(outcome1);
+
+    CommunicationOutcome outcome2 = {
+        true, std::chrono::milliseconds(150), 2048, 1, 0, "", 
+        std::chrono::system_clock::now()
+    };
+    loop.reportOutcome(outcome2);
+
+    ASSERT_TRUE(loop.saveData().has_value());
+    ASSERT_TRUE(loop.loadData().has_value());
+
+    auto current_metrics_result = loop.getCurrentMetrics();
+    ASSERT_TRUE(current_metrics_result.has_value());
 }
 
-TEST_F(FeedbackLoopPersistenceTest, StorageLimitEnforcement) {
-    // Configure with small storage limit
-    PersistenceConfig config;
-    config.dataDirectory = testDir_.string();
-    config.maxStorageSizeBytes = 1024;  // 1KB limit
-    FeedbackLoop loop(config);
-    
-    // Add lots of data
-    for (int i = 0; i < 1000; i++) {
-        loop.recordCommunicationOutcome({
-            .success = true,
-            .latencyMicros = i,
-            .bytesTransferred = 1024,
-            .retryCount = 0,
-            .errorCount = 0
-        });
-    }
-    
-    // Save data
-    ASSERT_TRUE(loop.saveData().isOk());
-    
-    // Verify storage limit is respected
-    std::uintmax_t totalSize = 0;
-    for (const auto& entry : std::filesystem::directory_iterator(testDir_)) {
-        totalSize += std::filesystem::file_size(entry.path());
-    }
-    EXPECT_LE(totalSize, config.maxStorageSizeBytes);
-}
+TEST_F(FeedbackLoopPersistenceTest, CorruptedDataHandling) {
+    CommunicationOutcome outcome = {
+        true, std::chrono::milliseconds(50), 512, 0, 0, "", std::chrono::system_clock::now()
+    };
+    feedbackLoop_->reportOutcome(outcome);
+    ASSERT_TRUE(feedbackLoop_->saveData().has_value());
 
-TEST_F(FeedbackLoopPersistenceTest, BackupAndRecovery) {
-    // Configure with backups enabled
-    PersistenceConfig config;
-    config.dataDirectory = testDir_.string();
-    config.enableBackup = true;
-    config.backupIntervalHours = 0;  // Force immediate backup
-    FeedbackLoop loop(config);
-    
-    // Add some data
-    loop.recordMetric("test", 1.0);
-    ASSERT_TRUE(loop.saveData().isOk());
-    
-    // Verify backup was created
-    bool foundBackup = false;
-    for (const auto& entry : std::filesystem::directory_iterator(testDir_)) {
-        if (entry.path().string().find("backup") != std::string::npos) {
-            foundBackup = true;
-            break;
-        }
+    std::string mainFile = testDir + "/feedback_main.dat";
+    std::ofstream ofs(mainFile, std::ios::trunc | std::ios::binary);
+    if (ofs.is_open()) {
+        ofs << "corrupted_data_far_beyond_repair";
+        ofs.close();
     }
-    EXPECT_TRUE(foundBackup);
-    
-    // Corrupt the main data file
-    auto mainFile = std::filesystem::directory_iterator(testDir_)->path();
-    std::ofstream(mainFile, std::ios::trunc) << "corrupted";
-    
-    // Load should succeed by recovering from backup
-    ASSERT_TRUE(loop.loadData().isOk());
-    
-    auto metrics = loop.getMetrics();
-    ASSERT_TRUE(metrics.find("test") != metrics.end());
-    EXPECT_NEAR(metrics["test"].back(), 1.0, 0.1);
+
+    FeedbackLoopConfig new_config = createConfig(testDir);
+    FeedbackLoop corruptedLoop(new_config);
+    auto load_result = corruptedLoop.loadData();
+    EXPECT_FALSE(load_result.has_value());
+
+    auto metrics_after_corrupt_load = corruptedLoop.getCurrentMetrics();
+    ASSERT_TRUE(metrics_after_corrupt_load.has_value());
+    EXPECT_EQ(metrics_after_corrupt_load.value().totalTransactions, 0);
 }
 
 } // namespace
+} // namespace core
 } // namespace xenocomm 

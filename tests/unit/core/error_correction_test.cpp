@@ -138,15 +138,15 @@ TEST_F(ErrorCorrectionTest, ReedSolomonMaxErrors) {
 }
 
 TEST_F(ErrorCorrectionTest, FactoryTest) {
-    auto none = ErrorCorrectionFactory::create(TransmissionManager::ErrorCorrectionMode::NONE);
+    auto none = ErrorCorrectionFactory::create(ErrorCorrectionMode::NONE);
     ASSERT_NE(none, nullptr);
     EXPECT_FALSE(none->canCorrect());
     
-    auto checksum = ErrorCorrectionFactory::create(TransmissionManager::ErrorCorrectionMode::CHECKSUM_ONLY);
+    auto checksum = ErrorCorrectionFactory::create(ErrorCorrectionMode::CHECKSUM_ONLY);
     ASSERT_NE(checksum, nullptr);
     EXPECT_FALSE(checksum->canCorrect());
     
-    auto rs = ErrorCorrectionFactory::create(TransmissionManager::ErrorCorrectionMode::REED_SOLOMON);
+    auto rs = ErrorCorrectionFactory::create(ErrorCorrectionMode::REED_SOLOMON);
     ASSERT_NE(rs, nullptr);
     EXPECT_TRUE(rs->canCorrect());
 }
@@ -161,7 +161,7 @@ TEST_F(ErrorCorrectionTest, EmptyData) {
     ASSERT_TRUE(crcDecoded.has_value());
     EXPECT_TRUE(crcDecoded.value().empty());
     
-    ReedSolomonCorrection rs;
+    ReedSolomonCorrection rs({});
     auto rsEncoded = rs.encode(empty);
     EXPECT_TRUE(rsEncoded.empty());
     auto rsDecoded = rs.decode(empty);
@@ -182,6 +182,94 @@ TEST_F(ErrorCorrectionTest, NonAlignedData) {
     
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded.value(), data);
+}
+
+TEST_F(ErrorCorrectionTest, FactoryCreation) {
+    auto none = ErrorCorrectionFactory::create(ErrorCorrectionMode::NONE);
+    ASSERT_NE(none, nullptr);
+    ASSERT_EQ(none->name(), "None");
+
+    auto checksum = ErrorCorrectionFactory::create(ErrorCorrectionMode::CHECKSUM_ONLY);
+    ASSERT_NE(checksum, nullptr);
+    ASSERT_EQ(checksum->name(), "CRC32");
+
+    auto rs = ErrorCorrectionFactory::create(ErrorCorrectionMode::REED_SOLOMON);
+    ASSERT_NE(rs, nullptr);
+    ASSERT_EQ(rs->name(), "Reed-Solomon");
+}
+
+TEST_F(ErrorCorrectionTest, ReedSolomonDefaultConfigAndEncodeDecode) {
+    ReedSolomonCorrection::Config defaultConfig;
+    ASSERT_EQ(defaultConfig.data_shards, 223);
+    ASSERT_EQ(defaultConfig.parity_shards, 32);
+    ASSERT_TRUE(defaultConfig.enable_interleaving);
+
+    ReedSolomonCorrection rs(defaultConfig);
+    std::vector<uint8_t> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    auto encoded = rs.encode(data);
+    EXPECT_GT(encoded.size(), data.size());
+    
+    auto decoded = rs.decode(encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded.value(), data);
+}
+
+TEST_F(ErrorCorrectionTest, ReedSolomonNoInterleaving) {
+    ReedSolomonCorrection::Config config;
+    config.enable_interleaving = false;
+    ReedSolomonCorrection rs(config);
+    std::vector<uint8_t> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    auto encoded = rs.encode(data);
+    
+    // Corrupt a burst of consecutive bytes
+    for (size_t i = 100; i < 110; i++) {
+        encoded[i] ^= 0xFF;
+    }
+    
+    auto decoded = rs.decode(encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded.value(), data);
+}
+
+TEST_F(ErrorCorrectionTest, ReedSolomonCorrectBurstErrorsWithInterleaving) {
+    ReedSolomonCorrection::Config config;
+    config.data_shards = 4; 
+    config.parity_shards = 2;
+    config.enable_interleaving = true;
+    ReedSolomonCorrection rs(config);
+
+    std::vector<uint8_t> data = {0, 1, 2, 3, 4, 5, 6, 7}; // 2 blocks of 4 data shards
+    
+    auto encoded = rs.encode(data);
+    
+    // Corrupt a burst of consecutive bytes
+    for (size_t i = 100; i < 110; i++) {
+        encoded[i] ^= 0xFF;
+    }
+    
+    auto decoded = rs.decode(encoded);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded.value(), data);
+}
+
+TEST_F(ErrorCorrectionTest, ReedSolomonFailWithTooManyBurstErrorsNoInterleaving) {
+    ReedSolomonCorrection::Config config;
+    config.data_shards = 4;
+    config.parity_shards = 2;
+    config.enable_interleaving = false;
+    ReedSolomonCorrection rs(config);
+
+    std::vector<uint8_t> data = {0, 1, 2, 3, 4, 5, 6, 7};
+    
+    auto encoded = rs.encode(data);
+    
+    // Corrupt a burst of consecutive bytes
+    for (size_t i = 100; i < 110; i++) {
+        encoded[i] ^= 0xFF;
+    }
+    
+    auto decoded = rs.decode(encoded);
+    EXPECT_FALSE(decoded.has_value());
 }
 
 } // namespace

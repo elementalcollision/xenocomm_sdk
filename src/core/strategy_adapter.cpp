@@ -1,11 +1,18 @@
 #include "xenocomm/core/strategy_adapter.h"
-#include "xenocomm/utils/logging.h"
+#include "xenocomm/utils/logging.hpp"
 #include <algorithm>
 #include <cmath>
 #include <mutex>
 #include <sstream>
+#include <numeric>
+#include <stdexcept>
+#include <iostream>
 
 namespace xenocomm {
+
+// Simple logging implementation
+#define LOG_INFO(msg) std::cout << "[INFO] " << msg << std::endl
+#define LOG_ERROR(msg) std::cerr << "[ERROR] " << msg << std::endl
 
 struct StrategyAdapter::Impl {
     std::shared_ptr<FeedbackLoop> feedback;
@@ -103,10 +110,10 @@ struct StrategyAdapter::Impl {
 
         // Adjust error correction based on error patterns
         if (metrics.basic.errorRate > thresholds.maxErrorRate * 2) {
-            config.errorCorrection = ErrorCorrectionMode::REED_SOLOMON;
+            config.errorCorrection = core::ErrorCorrectionMode::REED_SOLOMON;
             config.enableInterleaving = true;
         } else if (metrics.basic.errorRate > thresholds.maxErrorRate) {
-            config.errorCorrection = ErrorCorrectionMode::REED_SOLOMON;
+            config.errorCorrection = core::ErrorCorrectionMode::REED_SOLOMON;
             config.enableInterleaving = false;
         }
 
@@ -136,15 +143,15 @@ Result<StrategyRecommendation> StrategyAdapter::evaluateAndRecommend() const {
     
     try {
         auto metricsResult = impl_->feedback->getDetailedMetrics();
-        if (!metricsResult.is_ok()) {
-            return Result<StrategyRecommendation>::error(
+        if (metricsResult.has_error()) {
+            return Result<StrategyRecommendation>(
                 "Failed to get metrics: " + metricsResult.error());
         }
 
         return getRecommendationForCondition(metricsResult.value());
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to evaluate and recommend strategy: " + std::string(e.what()));
-        return Result<StrategyRecommendation>::error(
+        return Result<StrategyRecommendation>(
             "Failed to evaluate and recommend strategy: " + std::string(e.what()));
     }
 }
@@ -155,7 +162,7 @@ Result<StrategyRecommendation> StrategyAdapter::getRecommendationForCondition(
     
     try {
         if (!impl_->meetsMinimumSamples(metrics)) {
-            return Result<StrategyRecommendation>::error(
+            return Result<StrategyRecommendation>(
                 "Insufficient samples for recommendation");
         }
 
@@ -176,10 +183,10 @@ Result<StrategyRecommendation> StrategyAdapter::getRecommendationForCondition(
                    << "avg latency: " << metrics.latencyStats.mean << "ms";
         recommendation.explanation = explanation.str();
 
-        return Result<StrategyRecommendation>::ok(std::move(recommendation));
+        return Result<StrategyRecommendation>(std::move(recommendation));
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to get recommendation: " + std::string(e.what()));
-        return Result<StrategyRecommendation>::error(
+        return Result<StrategyRecommendation>(
             "Failed to get recommendation: " + std::string(e.what()));
     }
 }
@@ -191,7 +198,7 @@ Result<void> StrategyAdapter::startABTest(
     
     try {
         if (impl_->abTest.isActive) {
-            return Result<void>::error("A/B test already in progress");
+            return Result<void>("A/B test already in progress");
         }
 
         impl_->abTest = Impl::ABTestState{
@@ -204,10 +211,10 @@ Result<void> StrategyAdapter::startABTest(
             true
         };
 
-        return Result<void>::ok();
+        return Result<void>();
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to start A/B test: " + std::string(e.what()));
-        return Result<void>::error(
+        return Result<void>(
             "Failed to start A/B test: " + std::string(e.what()));
     }
 }
@@ -218,13 +225,13 @@ Result<void> StrategyAdapter::recordABTestOutcome(
     
     try {
         if (!impl_->abTest.isActive) {
-            return Result<void>::error("No active A/B test");
+            return Result<void>("No active A/B test");
         }
 
         auto now = std::chrono::system_clock::now();
         if (now > impl_->abTest.startTime + impl_->abTest.duration) {
             impl_->abTest.isActive = false;
-            return Result<void>::error("A/B test period has ended");
+            return Result<void>("A/B test period has ended");
         }
 
         if (strategy == impl_->abTest.strategyA) {
@@ -232,13 +239,13 @@ Result<void> StrategyAdapter::recordABTestOutcome(
         } else if (strategy == impl_->abTest.strategyB) {
             impl_->abTest.outcomesB.push_back(outcome);
         } else {
-            return Result<void>::error("Unknown strategy: " + strategy);
+            return Result<void>("Unknown strategy: " + strategy);
         }
 
-        return Result<void>::ok();
+        return Result<void>();
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to record A/B test outcome: " + std::string(e.what()));
-        return Result<void>::error(
+        return Result<void>(
             "Failed to record A/B test outcome: " + std::string(e.what()));
     }
 }
@@ -248,11 +255,11 @@ Result<ABTestResult> StrategyAdapter::getABTestResults() const {
     
     try {
         if (impl_->abTest.isActive) {
-            return Result<ABTestResult>::error("A/B test still in progress");
+            return Result<ABTestResult>("A/B test still in progress");
         }
 
         if (impl_->abTest.outcomesA.empty() || impl_->abTest.outcomesB.empty()) {
-            return Result<ABTestResult>::error("Insufficient data for comparison");
+            return Result<ABTestResult>("Insufficient data for comparison");
         }
 
         ABTestResult result;
@@ -307,10 +314,10 @@ Result<ABTestResult> StrategyAdapter::getABTestResults() const {
             result.explanation = "No significant difference between strategies";
         }
 
-        return Result<ABTestResult>::ok(std::move(result));
+        return Result<ABTestResult>(std::move(result));
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to get A/B test results: " + std::string(e.what()));
-        return Result<ABTestResult>::error(
+        return Result<ABTestResult>(
             "Failed to get A/B test results: " + std::string(e.what()));
     }
 }
@@ -329,16 +336,16 @@ Result<std::vector<std::string>> StrategyAdapter::getPerformanceInsights() const
     
     try {
         auto metricsResult = impl_->feedback->getDetailedMetrics();
-        if (!metricsResult.is_ok()) {
-            return Result<std::vector<std::string>>::error(
+        if (metricsResult.has_error()) {
+            return Result<std::vector<std::string>>(
                 "Failed to get metrics: " + metricsResult.error());
         }
 
-        return Result<std::vector<std::string>>::ok(
+        return Result<std::vector<std::string>>(
             impl_->generateInsights(metricsResult.value()));
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to get performance insights: " + std::string(e.what()));
-        return Result<std::vector<std::string>>::error(
+        return Result<std::vector<std::string>>(
             "Failed to get performance insights: " + std::string(e.what()));
     }
 }
@@ -348,8 +355,8 @@ Result<std::map<std::string, double>> StrategyAdapter::getStrategyEffectiveness(
     
     try {
         auto metricsResult = impl_->feedback->getDetailedMetrics();
-        if (!metricsResult.is_ok()) {
-            return Result<std::map<std::string, double>>::error(
+        if (metricsResult.has_error()) {
+            return Result<std::map<std::string, double>>(
                 "Failed to get metrics: " + metricsResult.error());
         }
 
@@ -365,10 +372,10 @@ Result<std::map<std::string, double>> StrategyAdapter::getStrategyEffectiveness(
         effectiveness["error_handling"] = 
             std::max(0.0, 1.0 - metrics.basic.errorRate / impl_->thresholds.maxErrorRate);
         
-        return Result<std::map<std::string, double>>::ok(std::move(effectiveness));
+        return Result<std::map<std::string, double>>(std::move(effectiveness));
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to get strategy effectiveness: " + std::string(e.what()));
-        return Result<std::map<std::string, double>>::error(
+        return Result<std::map<std::string, double>>(
             "Failed to get strategy effectiveness: " + std::string(e.what()));
     }
 }
@@ -379,7 +386,7 @@ Result<bool> StrategyAdapter::shouldAdaptStrategy(
     
     try {
         if (!impl_->meetsMinimumSamples(currentMetrics)) {
-            return Result<bool>::ok(false);
+            return Result<bool>(false);
         }
 
         // Check if any threshold is violated
@@ -389,10 +396,10 @@ Result<bool> StrategyAdapter::shouldAdaptStrategy(
             currentMetrics.throughputStats.mean < impl_->thresholds.minThroughputBps ||
             currentMetrics.basic.errorRate > impl_->thresholds.maxErrorRate;
 
-        return Result<bool>::ok(shouldAdapt);
+        return Result<bool>(shouldAdapt);
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to determine adaptation need: " + std::string(e.what()));
-        return Result<bool>::error(
+        return Result<bool>(
             "Failed to determine adaptation need: " + std::string(e.what()));
     }
 }
@@ -403,13 +410,13 @@ Result<StrategyConfig> StrategyAdapter::getOptimalConfig(
     
     try {
         if (!impl_->meetsMinimumSamples(metrics)) {
-            return Result<StrategyConfig>::error("Insufficient samples for optimization");
+            return Result<StrategyConfig>("Insufficient samples for optimization");
         }
 
-        return Result<StrategyConfig>::ok(impl_->optimizeConfig(metrics));
+        return Result<StrategyConfig>(impl_->optimizeConfig(metrics));
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to get optimal config: " + std::string(e.what()));
-        return Result<StrategyConfig>::error(
+        return Result<StrategyConfig>(
             "Failed to get optimal config: " + std::string(e.what()));
     }
 }

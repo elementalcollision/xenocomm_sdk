@@ -13,8 +13,8 @@ std::optional<std::string> CapabilityCache::get(const std::string& key) {
     // Remove expired entries first
     evict_expired_entries();
 
-    auto it = entries_.find(key);
-    if (it == entries_.end()) {
+    auto it = cache_.find(key);
+    if (it == cache_.end()) {
         if (config_.track_stats) {
             stats_.misses++;
         }
@@ -22,10 +22,10 @@ std::optional<std::string> CapabilityCache::get(const std::string& key) {
     }
 
     // Check if entry has expired
-    if (is_expired(it->second.first)) {
+    if (isExpired(it->second.first)) {
         // Remove expired entry
-        lru_list_.erase(it->second.second);
-        entries_.erase(it);
+        lruList_.erase(it->second.second);
+        cache_.erase(it);
         if (config_.track_stats) {
             stats_.evictions++;
             stats_.misses++;
@@ -34,9 +34,9 @@ std::optional<std::string> CapabilityCache::get(const std::string& key) {
     }
 
     // Move to front of LRU list
-    lru_list_.erase(it->second.second);
-    lru_list_.push_front(key);
-    it->second.second = lru_list_.begin();
+    lruList_.erase(it->second.second);
+    lruList_.push_front(key);
+    it->second.second = lruList_.begin();
 
     if (config_.track_stats) {
         stats_.hits++;
@@ -52,16 +52,14 @@ void CapabilityCache::put(const std::string& key, const std::string& value) {
     evict_expired_entries();
 
     // Remove existing entry if present
-    auto it = entries_.find(key);
-    if (it != entries_.end()) {
-        lru_list_.erase(it->second.second);
-        entries_.erase(it);
+    auto it = cache_.find(key);
+    if (it != cache_.end()) {
+        lruList_.erase(it->second.second);
+        cache_.erase(it);
     }
 
     // Ensure we have space
-    while (entries_.size() >= config_.max_entries) {
-        evict_lru_entry();
-    }
+    evictIfNeeded();
 
     // Create new entry
     CacheEntry entry;
@@ -69,8 +67,8 @@ void CapabilityCache::put(const std::string& key, const std::string& value) {
     entry.expiry = std::chrono::steady_clock::now() + config_.ttl;
 
     // Add to LRU list
-    lru_list_.push_front(key);
-    entries_.emplace(key, std::make_pair(std::move(entry), lru_list_.begin()));
+    lruList_.push_front(key);
+    cache_.emplace(key, std::make_pair(std::move(entry), lruList_.begin()));
 
     if (config_.track_stats) {
         stats_.insertions++;
@@ -80,10 +78,10 @@ void CapabilityCache::put(const std::string& key, const std::string& value) {
 bool CapabilityCache::remove(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto it = entries_.find(key);
-    if (it != entries_.end()) {
-        lru_list_.erase(it->second.second);
-        entries_.erase(it);
+    auto it = cache_.find(key);
+    if (it != cache_.end()) {
+        lruList_.erase(it->second.second);
+        cache_.erase(it);
         if (config_.track_stats) {
             stats_.evictions++;
         }
@@ -96,11 +94,11 @@ void CapabilityCache::clear() {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (config_.track_stats) {
-        stats_.evictions += entries_.size();
+        stats_.evictions += cache_.size();
     }
 
-    entries_.clear();
-    lru_list_.clear();
+    cache_.clear();
+    lruList_.clear();
 }
 
 CacheStats CapabilityCache::get_stats() const {
@@ -110,32 +108,32 @@ CacheStats CapabilityCache::get_stats() const {
 
 void CapabilityCache::evict_expired_entries() {
     auto now = std::chrono::steady_clock::now();
-    auto it = entries_.begin();
-    while (it != entries_.end()) {
-        if (is_expired(it->second.first)) {
-            lru_list_.erase(it->second.second);
+    auto it = cache_.begin();
+    while (it != cache_.end()) {
+        if (isExpired(it->second.first)) {
+            lruList_.erase(it->second.second);
             if (config_.track_stats) {
                 stats_.evictions++;
             }
-            it = entries_.erase(it);
+            it = cache_.erase(it);
         } else {
             ++it;
         }
     }
 }
 
-void CapabilityCache::evict_lru_entry() {
-    if (!lru_list_.empty()) {
-        auto lru_key = lru_list_.back();
-        entries_.erase(lru_key);
-        lru_list_.pop_back();
-        if (config_.track_stats) {
-            stats_.evictions++;
-        }
+void CapabilityCache::evictIfNeeded() {
+    // Assumes mutex_ is already held
+    while (cache_.size() >= config_.max_entries) {
+        if (lruList_.empty()) break; // Should not happen if cache is not empty
+        std::string lruKey = lruList_.back();
+        lruList_.pop_back();
+        cache_.erase(lruKey);
+        if (config_.track_stats) stats_.evictions++;
     }
 }
 
-bool CapabilityCache::is_expired(const CacheEntry& entry) const {
+bool CapabilityCache::isExpired(const CacheEntry& entry) const {
     return std::chrono::steady_clock::now() > entry.expiry;
 }
 

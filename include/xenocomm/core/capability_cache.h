@@ -81,9 +81,9 @@ public:
     CapabilityCache(const CapabilityCache&) = delete;
     CapabilityCache& operator=(const CapabilityCache&) = delete;
 
-    // Allow moving
-    CapabilityCache(CapabilityCache&&) = default;
-    CapabilityCache& operator=(CapabilityCache&&) = default;
+    // Explicitly delete move operations since std::mutex is not movable
+    CapabilityCache(CapabilityCache&&) = delete;
+    CapabilityCache& operator=(CapabilityCache&&) = delete;
 
     /**
      * @brief Looks up a capability in the cache.

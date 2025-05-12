@@ -1,4 +1,6 @@
-#include "xenocomm/extensions/emergence_manager.h"
+#include "xenocomm/extensions/emergence_manager.hpp"
+#include <nlohmann/json.hpp>
+#include <map>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -8,6 +10,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cmath>
+#include <sys/stat.h>
 
 namespace xenocomm {
 namespace extensions {
@@ -98,12 +101,20 @@ void EmergenceManager::logEvent(const std::string& message) const {
 // --- Performance Logging and Evaluation Implementation ---
 
 void EmergenceManager::logPerformance(const std::string& variantId, const PerformanceRecord& record) {
+    // Check if variant exists
+    if (variants_.count(variantId) == 0) {
+        throw std::out_of_range("Variant ID not found");
+    }
     performanceHistory_[variantId].push_back(record);
     logEvent("Logged performance for variant: " + variantId);
     checkAutosave();
 }
 
 std::vector<PerformanceRecord> EmergenceManager::getVariantPerformance(const std::string& variantId) const {
+    // Check if variant exists
+    if (variants_.count(variantId) == 0) {
+        throw std::out_of_range("Variant ID not found");
+    }
     auto it = performanceHistory_.find(variantId);
     if (it != performanceHistory_.end()) {
         return it->second;
@@ -207,6 +218,10 @@ std::string EmergenceManager::generatePerformanceReport(const std::vector<std::s
     }
     report << "\n" << std::string(80, '-') << "\n";
     for (const auto& id : variantIds) {
+        // Check if variant exists
+        if (variants_.count(id) == 0) {
+            throw std::out_of_range("Variant ID not found: " + id);
+        }
         auto records = getVariantPerformance(id);
         double sr = 0, lat = 0, ru = 0, thr = 0;
         size_t n = records.size();
@@ -362,11 +377,35 @@ void EmergenceManager::deserializeState(const nlohmann::json& state) {
 }
 
 void EmergenceManager::writeJsonToFile(const std::string& filePath, const nlohmann::json& data) const {
+    // Create directory if it doesn't exist
+    size_t lastSlash = filePath.find_last_of("/\\");
+    if (lastSlash != std::string::npos) {
+        std::string dir = filePath.substr(0, lastSlash);
+        // Simple recursive directory creation
+        for (size_t i = 0; i < dir.size(); i++) {
+            if (dir[i] == '/' || dir[i] == '\\') {
+                std::string subdir = dir.substr(0, i);
+                if (!subdir.empty()) {
+                    #ifdef _WIN32
+                    _mkdir(subdir.c_str());
+                    #else
+                    mkdir(subdir.c_str(), 0755);
+                    #endif
+                }
+            }
+        }
+        #ifdef _WIN32
+        _mkdir(dir.c_str());
+        #else
+        mkdir(dir.c_str(), 0755);
+        #endif
+    }
+    
     std::ofstream file(filePath);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open file for writing: " + filePath);
     }
-    file << data.dump(2);
+    file << data.dump(4); // Pretty print with 4 space indent
 }
 
 nlohmann::json EmergenceManager::readJsonFromFile(const std::string& filePath) const {
@@ -374,9 +413,13 @@ nlohmann::json EmergenceManager::readJsonFromFile(const std::string& filePath) c
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open file for reading: " + filePath);
     }
-    nlohmann::json data;
-    file >> data;
-    return data;
+    nlohmann::json result;
+    try {
+        file >> result;
+    } catch (const nlohmann::json::exception& e) {
+        throw std::runtime_error("Failed to parse JSON from file: " + filePath + " - " + e.what());
+    }
+    return result;
 }
 
 void EmergenceManager::saveState() const {

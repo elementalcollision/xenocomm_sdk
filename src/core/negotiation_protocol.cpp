@@ -1,14 +1,22 @@
-#include "xenocomm/core/negotiation_protocol.h"
-#include <stdexcept> // For std::runtime_error
-#include <unordered_map> // To manage sessions
-#include <mutex> // For thread safety
-#include <atomic> // For generating session IDs
-#include <chrono> // For timeouts (optional)
-#include <variant> // For message payloads
-#include <thread> // For cleanup thread
-#include <functional> // For std::function
-#include <iostream> // For logging (can be replaced with a proper logging system)
-#include <unordered_set> // For state transition validation
+#include "xenocomm/core/negotiation_protocol.h" // Include the header for definitions
+#include "xenocomm/core/security_manager.h" 
+#include "xenocomm/utils/serialization.h"
+
+#include <iostream>
+#include <vector>
+#include <chrono>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <random>
+#include <algorithm>
+#include <stdexcept>
+#include <iomanip> 
+#include <sstream> 
+#include <unordered_set> // Added missing include
+#include <variant> // For std::variant
+#include <optional> // Added missing include
+#include <memory> // Added missing include
 
 namespace xenocomm {
 namespace core {
@@ -94,7 +102,7 @@ namespace validation {
             case KeyExchangeMethod::ECDH_P256:
             case KeyExchangeMethod::ECDH_P384:
             case KeyExchangeMethod::ECDH_P521:
-            case KeyExchangeMethod::X25519:
+            case KeyExchangeMethod::ECDH_X25519:
                 return true;
             default:
                 return false;
@@ -110,7 +118,7 @@ namespace validation {
             case AuthenticationMethod::RSA_PSS:
             case AuthenticationMethod::ECDSA_P256:
             case AuthenticationMethod::ECDSA_P384:
-            case AuthenticationMethod::ED25519:
+            case AuthenticationMethod::ED25519_SIGNATURE:
                 return true;
             default:
                 return false;
@@ -281,7 +289,7 @@ public:
         ERROR
     };
 
-    void log(Level level, const std::string& message) {
+    void log(Level level, const std::string& message) const {
         if (level < minLevel_) return;
 
         const char* levelStr = "UNKNOWN";
@@ -301,7 +309,7 @@ public:
 
     void debug(const std::string& message) { log(Level::DEBUG, message); }
     void info(const std::string& message) { log(Level::INFO, message); }
-    void warning(const std::string& message) { log(Level::WARNING, message); }
+    void warning(const std::string& message) const { log(Level::WARNING, message); }
     void error(const std::string& message) { log(Level::ERROR, message); }
 
     void setLevel(Level level) { minLevel_ = level; }
@@ -404,536 +412,30 @@ private:
     }
 };
 
-// --- Parameter preference with ranking capability ---
-struct ParameterPreference {
-    template <typename T>
-    struct RankedOption {
-        T value;
-        uint8_t rank;  // Lower is more preferred
-        bool required;  // If true, negotiation fails if this can't be satisfied
-        std::vector<T> fallbacks;  // Ordered list of fallback options specific to this value
+// --- Message Types and Payloads (Moved definitions before usage) ---
 
-        RankedOption(T v, uint8_t r, bool req = false) 
-            : value(v), rank(r), required(req) {}
-
-        RankedOption(T v, uint8_t r, bool req, std::vector<T> fb) 
-            : value(v), rank(r), required(req), fallbacks(std::move(fb)) {}
-
-        bool operator<(const RankedOption& other) const {
-            return rank < other.rank;
-        }
-    };
-    
-    std::vector<RankedOption<DataFormat>> dataFormats;
-    std::vector<RankedOption<CompressionAlgorithm>> compressionAlgorithms;
-    std::vector<RankedOption<ErrorCorrectionScheme>> errorCorrectionSchemes;
-    std::vector<RankedOption<EncryptionAlgorithm>> encryptionAlgorithms;
-    std::vector<RankedOption<KeyExchangeMethod>> keyExchangeMethods;
-    std::vector<RankedOption<AuthenticationMethod>> authenticationMethods;
-    std::vector<RankedOption<KeySize>> keySizes;
-    std::map<std::string, std::vector<RankedOption<std::string>>> customParameters;
-    
-    // Helper to find best match between local and remote preferences
-    template <typename T>
-    std::optional<T> findBestMatch(const std::vector<RankedOption<T>>& local,
-                                  const std::vector<T>& remote) const {
-        if (local.empty() || remote.empty()) {
-            return std::nullopt;
-        }
-
-        // Find the lowest-rank (most preferred) option that's in both sets
-        for (const auto& option : local) {
-            if (std::find(remote.begin(), remote.end(), option.value) != remote.end()) {
-                return option.value;
-            }
-        }
-
-        // Check if we have any required options that weren't matched
-        for (const auto& option : local) {
-            if (option.required) {
-                // A required option wasn't found in remote options
-                return std::nullopt;
-            }
-        }
-
-        // No match found, but nothing required
-        return local.front().value;  // Return our most preferred option
-    }
-
-    // Enhanced best match finding with fallback support
-    template <typename T>
-    std::optional<T> findBestMatchWithFallbacks(const std::vector<RankedOption<T>>& local,
-                                              const std::vector<T>& remote) const {
-        if (local.empty() || remote.empty()) {
-            return std::nullopt;
-        }
-
-        // First try to find a direct match with our preferences
-        for (const auto& option : local) {
-            if (std::find(remote.begin(), remote.end(), option.value) != remote.end()) {
-                return option.value;
-            }
-
-            // If no direct match, try the fallbacks for this option
-            for (const auto& fallback : option.fallbacks) {
-                if (std::find(remote.begin(), remote.end(), fallback) != remote.end()) {
-                    return fallback;
-                }
-            }
-        }
-
-        // Check if we have any required options that weren't matched
-        for (const auto& option : local) {
-            if (option.required) {
-                // A required option wasn't found in remote options
-                return std::nullopt;
-            }
-        }
-
-        // No match found, but nothing required
-        return local.front().value;  // Return our most preferred option
-    }
-
-    // Build a NegotiableParams object based on local preferences and remote options
-    NegotiableParams buildCompatibleParams(
-        const std::vector<DataFormat>& remoteFormats,
-        const std::vector<CompressionAlgorithm>& remoteCompression,
-        const std::vector<ErrorCorrectionScheme>& remoteErrorCorrection,
-        const std::vector<EncryptionAlgorithm>& remoteEncryption,
-        const std::vector<KeyExchangeMethod>& remoteKeyExchange,
-        const std::vector<AuthenticationMethod>& remoteAuth,
-        const std::vector<KeySize>& remoteKeySizes) const {
-        
-        NegotiableParams params;
-        
-        auto format = findBestMatch(dataFormats, remoteFormats);
-        if (format) {
-            params.dataFormat = *format;
-        } else if (!dataFormats.empty()) {
-            params.dataFormat = dataFormats.front().value;
-        }
-        
-        auto compression = findBestMatch(compressionAlgorithms, remoteCompression);
-        if (compression) {
-            params.compressionAlgorithm = *compression;
-        } else if (!compressionAlgorithms.empty()) {
-            params.compressionAlgorithm = compressionAlgorithms.front().value;
-        }
-        
-        auto errorScheme = findBestMatch(errorCorrectionSchemes, remoteErrorCorrection);
-        if (errorScheme) {
-            params.errorCorrection = *errorScheme;
-        } else if (!errorCorrectionSchemes.empty()) {
-            params.errorCorrection = errorCorrectionSchemes.front().value;
-        }
-        
-        auto encryption = findBestMatch(encryptionAlgorithms, remoteEncryption);
-        if (encryption) {
-            params.encryptionAlgorithm = *encryption;
-        } else if (!encryptionAlgorithms.empty()) {
-            params.encryptionAlgorithm = encryptionAlgorithms.front().value;
-        }
-        
-        auto keyExchange = findBestMatch(keyExchangeMethods, remoteKeyExchange);
-        if (keyExchange) {
-            params.keyExchangeMethod = *keyExchange;
-        } else if (!keyExchangeMethods.empty()) {
-            params.keyExchangeMethod = keyExchangeMethods.front().value;
-        }
-        
-        auto authMethod = findBestMatch(authenticationMethods, remoteAuth);
-        if (authMethod) {
-            params.authenticationMethod = *authMethod;
-        } else if (!authenticationMethods.empty()) {
-            params.authenticationMethod = authenticationMethods.front().value;
-        }
-        
-        auto keySize = findBestMatch(keySizes, remoteKeySizes);
-        if (keySize) {
-            params.keySize = *keySize;
-        } else if (!keySizes.empty()) {
-            params.keySize = keySizes.front().value;
-        }
-        
-        // Validate the resulting parameter set
-        auto validationResult = validation::validateParameterSet(params);
-        if (validationResult != validation::ValidationResult::VALID) {
-            throw std::runtime_error("Failed to create compatible parameter set: " + 
-                validation::validationResultToString(validationResult));
-        }
-        
-        return params;
-    }
-
-    // Create optimal parameters based solely on local preferences
-    NegotiableParams createOptimalParameters() const {
-        NegotiableParams params;
-        
-        // Use the highest preference (lowest rank) for each parameter
-        if (!dataFormats.empty()) {
-            auto bestFormat = std::min_element(dataFormats.begin(), dataFormats.end());
-            params.dataFormat = bestFormat->value;
-        }
-        
-        if (!compressionAlgorithms.empty()) {
-            auto bestCompression = std::min_element(compressionAlgorithms.begin(), compressionAlgorithms.end());
-            params.compressionAlgorithm = bestCompression->value;
-        }
-        
-        if (!errorCorrectionSchemes.empty()) {
-            auto bestErrorScheme = std::min_element(errorCorrectionSchemes.begin(), errorCorrectionSchemes.end());
-            params.errorCorrection = bestErrorScheme->value;
-        }
-        
-        if (!encryptionAlgorithms.empty()) {
-            auto bestEncryption = std::min_element(encryptionAlgorithms.begin(), encryptionAlgorithms.end());
-            params.encryptionAlgorithm = bestEncryption->value;
-        }
-        
-        if (!keyExchangeMethods.empty()) {
-            auto bestKeyExchange = std::min_element(keyExchangeMethods.begin(), keyExchangeMethods.end());
-            params.keyExchangeMethod = bestKeyExchange->value;
-        }
-        
-        if (!authenticationMethods.empty()) {
-            auto bestAuthMethod = std::min_element(authenticationMethods.begin(), authenticationMethods.end());
-            params.authenticationMethod = bestAuthMethod->value;
-        }
-        
-        if (!keySizes.empty()) {
-            auto bestKeySize = std::min_element(keySizes.begin(), keySizes.end());
-            params.keySize = bestKeySize->value;
-        }
-        
-        // Validate the resulting parameter set
-        auto validationResult = validation::validateParameterSet(params);
-        if (validationResult != validation::ValidationResult::VALID) {
-            throw std::runtime_error("Failed to create optimal parameter set: " + 
-                validation::validationResultToString(validationResult));
-        }
-        
-        return params;
-    }
-
-    // Check if a proposal is compatible with our preferences
-    bool isCompatibleWithRequirements(const NegotiableParams& proposal) const {
-        // Check if proposal's data format is acceptable
-        bool formatCompatible = false;
-        bool hasRequiredFormat = false;
-        
-        for (const auto& format : dataFormats) {
-            if (format.required) {
-                hasRequiredFormat = true;
-                if (proposal.dataFormat == format.value) {
-                    formatCompatible = true;
-                    break;
-                }
-            } else if (proposal.dataFormat == format.value) {
-                formatCompatible = true;
-                break;
-            }
-        }
-        
-        // If we have a required format but proposal doesn't match, reject
-        if (hasRequiredFormat && !formatCompatible) {
-            return false;
-        }
-        
-        // Perform similar checks for compression and error correction
-        bool compressionCompatible = false;
-        bool hasRequiredCompression = false;
-        
-        for (const auto& compression : compressionAlgorithms) {
-            if (compression.required) {
-                hasRequiredCompression = true;
-                if (proposal.compressionAlgorithm == compression.value) {
-                    compressionCompatible = true;
-                    break;
-                }
-            } else if (proposal.compressionAlgorithm == compression.value) {
-                compressionCompatible = true;
-                break;
-            }
-        }
-        
-        if (hasRequiredCompression && !compressionCompatible) {
-            return false;
-        }
-        
-        bool errorCorrectionCompatible = false;
-        bool hasRequiredErrorCorrection = false;
-        
-        for (const auto& errorScheme : errorCorrectionSchemes) {
-            if (errorScheme.required) {
-                hasRequiredErrorCorrection = true;
-                if (proposal.errorCorrection == errorScheme.value) {
-                    errorCorrectionCompatible = true;
-                    break;
-                }
-            } else if (proposal.errorCorrection == errorScheme.value) {
-                errorCorrectionCompatible = true;
-                break;
-            }
-        }
-        
-        if (hasRequiredErrorCorrection && !errorCorrectionCompatible) {
-            return false;
-        }
-        
-        // Check the overall validity of the parameter set
-        auto validationResult = validation::validateParameterSet(proposal);
-        return validationResult == validation::ValidationResult::VALID;
-    }
-
-    // Calculate a score for a proposal based on how well it matches our preferences
-    uint32_t calculateCompatibilityScore(const NegotiableParams& proposal) const {
-        // Lower score is better (like rank)
-        uint32_t score = 0;
-        
-        // Find the rank of the proposed data format
-        bool formatFound = false;
-        for (const auto& format : dataFormats) {
-            if (proposal.dataFormat == format.value) {
-                score += format.rank;
-                formatFound = true;
-                break;
-            }
-        }
-        
-        // Penalize if format not in our preferences
-        if (!formatFound && !dataFormats.empty()) {
-            score += 100; // Large penalty for missing format
-        }
-        
-        // Find the rank of the proposed compression algorithm
-        bool compressionFound = false;
-        for (const auto& compression : compressionAlgorithms) {
-            if (proposal.compressionAlgorithm == compression.value) {
-                score += compression.rank;
-                compressionFound = true;
-                break;
-            }
-        }
-        
-        // Penalize if compression not in our preferences
-        if (!compressionFound && !compressionAlgorithms.empty()) {
-            score += 50; // Medium penalty for compression
-        }
-        
-        // Find the rank of the proposed error correction scheme
-        bool errorCorrectionFound = false;
-        for (const auto& errorScheme : errorCorrectionSchemes) {
-            if (proposal.errorCorrection == errorScheme.value) {
-                score += errorScheme.rank;
-                errorCorrectionFound = true;
-                break;
-            }
-        }
-        
-        // Penalize if error correction not in our preferences
-        if (!errorCorrectionFound && !errorCorrectionSchemes.empty()) {
-            score += 50; // Medium penalty for error correction
-        }
-        
-        // Find the rank of the proposed encryption algorithm
-        bool encryptionFound = false;
-        for (const auto& encryption : encryptionAlgorithms) {
-            if (proposal.encryptionAlgorithm == encryption.value) {
-                score += encryption.rank;
-                encryptionFound = true;
-                break;
-            }
-        }
-        
-        // Penalize if encryption not in our preferences
-        if (!encryptionFound && !encryptionAlgorithms.empty()) {
-            score += 50; // Medium penalty for encryption
-        }
-        
-        // Find the rank of the proposed key exchange method
-        bool keyExchangeFound = false;
-        for (const auto& keyExchange : keyExchangeMethods) {
-            if (proposal.keyExchangeMethod == keyExchange.value) {
-                score += keyExchange.rank;
-                keyExchangeFound = true;
-                break;
-            }
-        }
-        
-        // Penalize if key exchange not in our preferences
-        if (!keyExchangeFound && !keyExchangeMethods.empty()) {
-            score += 50; // Medium penalty for key exchange
-        }
-        
-        // Find the rank of the proposed authentication method
-        bool authMethodFound = false;
-        for (const auto& authMethod : authenticationMethods) {
-            if (proposal.authenticationMethod == authMethod.value) {
-                score += authMethod.rank;
-                authMethodFound = true;
-                break;
-            }
-        }
-        
-        // Penalize if authentication method not in our preferences
-        if (!authMethodFound && !authenticationMethods.empty()) {
-            score += 50; // Medium penalty for authentication method
-        }
-        
-        // Find the rank of the proposed key size
-        bool keySizeFound = false;
-        for (const auto& keySize : keySizes) {
-            if (proposal.keySize == keySize.value) {
-                score += keySize.rank;
-                keySizeFound = true;
-                break;
-            }
-        }
-        
-        // Penalize if key size not in our preferences
-        if (!keySizeFound && !keySizes.empty()) {
-            score += 50; // Medium penalty for key size
-        }
-        
-        return score;
-    }
-
-    // Generate alternative proposals when initial proposal is rejected
-    std::vector<NegotiableParams> generateAlternativeProposals(
-        const NegotiableParams& rejectedProposal,
-        const std::vector<DataFormat>& remoteFormats,
-        const std::vector<CompressionAlgorithm>& remoteCompression,
-        const std::vector<ErrorCorrectionScheme>& remoteErrorCorrection,
-        const std::vector<EncryptionAlgorithm>& remoteEncryption,
-        const std::vector<KeyExchangeMethod>& remoteKeyExchange,
-        const std::vector<AuthenticationMethod>& remoteAuth,
-        const std::vector<KeySize>& remoteKeySizes,
-        size_t maxAlternatives = 3) const {
-        
-        std::vector<NegotiableParams> alternatives;
-        
-        // Helper to get all valid options including fallbacks
-        auto getAllOptions = [](const auto& rankedOptions) {
-            std::vector<typename std::remove_reference_t<decltype(rankedOptions)>::value_type::value_type> allOptions;
-            for (const auto& option : rankedOptions) {
-                allOptions.push_back(option.value);
-                allOptions.insert(allOptions.end(), option.fallbacks.begin(), option.fallbacks.end());
-            }
-            return allOptions;
-        };
-
-        // Get all possible options
-        auto allFormats = getAllOptions(dataFormats);
-        auto allCompressions = getAllOptions(compressionAlgorithms);
-        auto allErrorSchemes = getAllOptions(errorCorrectionSchemes);
-        auto allEncryptions = getAllOptions(encryptionAlgorithms);
-        auto allKeyExchanges = getAllOptions(keyExchangeMethods);
-        auto allAuthMethods = getAllOptions(authenticationMethods);
-        auto allKeySizes = getAllOptions(keySizes);
-
-        // Try different combinations, prioritizing keeping more preferred options
-        for (const auto& format : allFormats) {
-            for (const auto& compression : allCompressions) {
-                for (const auto& errorScheme : allErrorSchemes) {
-                    for (const auto& encryption : allEncryptions) {
-                        for (const auto& keyExchange : allKeyExchanges) {
-                            for (const auto& authMethod : allAuthMethods) {
-                                for (const auto& keySize : allKeySizes) {
-                                    // Skip the rejected combination
-                                    if (format == rejectedProposal.dataFormat &&
-                                        compression == rejectedProposal.compressionAlgorithm &&
-                                        errorScheme == rejectedProposal.errorCorrection &&
-                                        encryption == rejectedProposal.encryptionAlgorithm &&
-                                        keyExchange == rejectedProposal.keyExchangeMethod &&
-                                        authMethod == rejectedProposal.authenticationMethod &&
-                                        keySize == rejectedProposal.keySize) {
-                                        continue;
-                                    }
-
-                                    // Create a new parameter set
-                                    NegotiableParams params;
-                                    params.dataFormat = format;
-                                    params.compressionAlgorithm = compression;
-                                    params.errorCorrection = errorScheme;
-                                    params.encryptionAlgorithm = encryption;
-                                    params.keyExchangeMethod = keyExchange;
-                                    params.authenticationMethod = authMethod;
-                                    params.keySize = keySize;
-
-                                    // Validate the parameter set
-                                    auto validationResult = validation::validateParameterSet(params);
-                                    if (validationResult == validation::ValidationResult::VALID) {
-                                        // Check if the remote peer supports these parameters
-                                        bool isSupported = 
-                                            std::find(remoteFormats.begin(), remoteFormats.end(), format) != remoteFormats.end() &&
-                                            std::find(remoteCompression.begin(), remoteCompression.end(), compression) != remoteCompression.end() &&
-                                            std::find(remoteErrorCorrection.begin(), remoteErrorCorrection.end(), errorScheme) != remoteErrorCorrection.end() &&
-                                            std::find(remoteEncryption.begin(), remoteEncryption.end(), encryption) != remoteEncryption.end() &&
-                                            std::find(remoteKeyExchange.begin(), remoteKeyExchange.end(), keyExchange) != remoteKeyExchange.end() &&
-                                            std::find(remoteAuth.begin(), remoteAuth.end(), authMethod) != remoteAuth.end() &&
-                                            std::find(remoteKeySizes.begin(), remoteKeySizes.end(), keySize) != remoteKeySizes.end();
-
-                                        if (isSupported) {
-                                            alternatives.push_back(params);
-                                            if (alternatives.size() >= maxAlternatives) {
-                                                return alternatives;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return alternatives;
-    }
-
-    // Build compatible parameters with enhanced fallback support
-    NegotiableParams buildCompatibleParamsWithFallbacks(
-        const std::vector<DataFormat>& remoteFormats,
-        const std::vector<CompressionAlgorithm>& remoteCompression,
-        const std::vector<ErrorCorrectionScheme>& remoteErrorCorrection,
-        const std::vector<EncryptionAlgorithm>& remoteEncryption,
-        const std::vector<KeyExchangeMethod>& remoteKeyExchange,
-        const std::vector<AuthenticationMethod>& remoteAuth,
-        const std::vector<KeySize>& remoteKeySizes
-    ) const {
-        NegotiableParams params;
-        
-        // Find best matching options for each parameter
-        params.dataFormat = findBestMatchWithFallbacks(dataFormats, remoteFormats);
-        params.compressionAlgorithm = findBestMatchWithFallbacks(compressionAlgorithms, remoteCompression);
-        params.errorCorrection = findBestMatchWithFallbacks(errorCorrectionSchemes, remoteErrorCorrection);
-        params.encryptionAlgorithm = findBestMatchWithFallbacks(encryptionAlgorithms, remoteEncryption);
-        params.keyExchangeMethod = findBestMatchWithFallbacks(keyExchangeMethods, remoteKeyExchange);
-        params.authenticationMethod = findBestMatchWithFallbacks(authenticationMethods, remoteAuth);
-        params.keySize = findBestMatchWithFallbacks(keySizes, remoteKeySizes);
-        
-        // Validate the combined parameter set
-        auto validationResult = validation::validateParameterSet(params);
-        
-        // If validation fails, try fallback to no encryption
-        if (validationResult != validation::ValidationResult::VALID) {
-            params.encryptionAlgorithm = EncryptionAlgorithm::NONE;
-            params.keyExchangeMethod = KeyExchangeMethod::NONE;
-            params.keySize = KeySize::NONE;
-            
-            // Revalidate with fallback security settings
-            validationResult = validation::validateParameterSet(params);
-            if (validationResult != validation::ValidationResult::VALID) {
-                throw std::runtime_error("Failed to find compatible parameters: " + 
-                                       validation::validationResultToString(validationResult));
-            }
-        }
-
-        return params;
-    }
+enum class MessageType {
+    PROPOSE,
+    ACCEPT,
+    COUNTER,
+    REJECT,
+    FINALIZE,
+    CLOSE
 };
 
-// Enhanced message structures with sequence IDs and timestamps
+struct ProposePayload { NegotiableParams params; };
+struct AcceptPayload { std::optional<NegotiableParams> params; }; // Optional echo
+struct CounterPayload { NegotiableParams params; };
+struct RejectPayload { std::optional<std::string> reason; };
+struct FinalizePayload { NegotiableParams params; };
+struct ClosePayload { std::optional<std::string> reason; };
+
+// --- Internal Message Representation (Placeholder) ---
+// This simulates what the network layer might provide.
+using MessagePayload = std::variant<std::monostate, ProposePayload, AcceptPayload, CounterPayload, RejectPayload, FinalizePayload, ClosePayload>;
+
+// --- Negotiation Message Definition ---
+
 struct NegotiationMessage {
     MessageType type;
     NegotiationProtocol::SessionId sessionId;
@@ -957,46 +459,15 @@ struct NegotiationMessage {
           timestamp(std::chrono::steady_clock::now()) {}
 };
 
-// --- Internal Message Representation (Placeholder) ---
-// This simulates what the network layer might provide.
-
-enum class MessageType {
-    PROPOSE,
-    ACCEPT,
-    COUNTER,
-    REJECT,
-    FINALIZE,
-    CLOSE
-};
-
-// Simple payload structures (could be more complex, e.g., serialized data)
-struct ProposePayload { NegotiableParams params; };
-struct AcceptPayload { std::optional<NegotiableParams> params; }; // Optional echo
-struct CounterPayload { NegotiableParams params; };
-struct RejectPayload { std::optional<std::string> reason; };
-struct FinalizePayload { NegotiableParams params; };
-struct ClosePayload { std::optional<std::string> reason; };
-
-// Using std::variant for the payload type
-using MessagePayload = std::variant<
-    std::monostate, // For messages potentially without payload
-    ProposePayload,
-    AcceptPayload,
-    CounterPayload,
-    RejectPayload,
-    FinalizePayload,
-    ClosePayload
->;
-
-// Forward declaration for internal session data structure
-struct NegotiationSessionData;
-
 // --- Event Handler Types ---
 // Define the types of event handlers that can be registered
 using StateChangeHandler = std::function<void(NegotiationState, NegotiationState, const std::string&)>;
 
 class ConcreteNegotiationProtocol : public NegotiationProtocol {
 public:
+    // Bring SessionId into class scope
+    using SessionId = NegotiationProtocol::SessionId;
+
     // Constructor with optional parameters
     ConcreteNegotiationProtocol(bool enableLogging = true) 
         : nextSessionId_(1) {
@@ -1008,7 +479,7 @@ public:
         logger_.info("NegotiationProtocol initialized");
     }
     
-    ~ConcreteNegotiationProtocol() override = default;
+    ~ConcreteNegotiationProtocol() noexcept override = default;
 
     // Implementation of public API
     SessionId initiateSession(const std::string& targetAgentId, const NegotiableParams& proposedParams) override;
@@ -1036,465 +507,42 @@ public:
     bool autoProcessProposal(SessionId sessionId, const ParameterPreference& preferences);
 
 private:
-    // Structure to hold internal state for each negotiation session
-    struct NegotiationSessionData {
-        std::string initiatorAgentId;
-        std::string targetAgentId;
-        NegotiableParams initialProposal;
-        std::optional<NegotiableParams> counterProposal;
-        std::optional<NegotiableParams> finalParams;
-        NegotiationState state = NegotiationState::IDLE; // Default to IDLE
-        
-        // Timing information for timeout handling
-        std::chrono::steady_clock::time_point createdTime = std::chrono::steady_clock::now();
-        std::unordered_map<NegotiationState, std::chrono::steady_clock::time_point> stateTimestamps;
-        
-        // Retry counters
-        int retryCount = 0;
-        
-        // Additional metadata
-        std::optional<std::string> lastError;
-        std::optional<std::string> failureReason;
-        
-        // Track fallback attempts
-        std::vector<NegotiableParams> triedProposals;
-        size_t fallbackAttempts = 0;
-        static constexpr size_t MAX_FALLBACK_ATTEMPTS = 3;
-        
-        // Store remote capabilities for fallback generation
-        std::vector<DataFormat> remoteFormats;
-        std::vector<CompressionAlgorithm> remoteCompression;
-        std::vector<ErrorCorrectionScheme> remoteErrorCorrection;
-        std::vector<EncryptionAlgorithm> remoteEncryption;
-        std::vector<KeyExchangeMethod> remoteKeyExchange;
-        std::vector<AuthenticationMethod> remoteAuth;
-        std::vector<KeySize> remoteKeySizes;
-        
-        // Constructor with initialization
-        NegotiationSessionData() {
-            // Record initial state timestamp
-            stateTimestamps[NegotiationState::IDLE] = createdTime;
-            fallbackAttempts = 0;
-        }
-    };
-
-    // Helper to get session data safely
-    NegotiationSessionData& getSessionData(SessionId sessionId);
-    const NegotiationSessionData& getSessionData(SessionId sessionId) const;
-    
-    // State transition helper with validation and event handling
-    bool transitionState(SessionId sessionId, NegotiationState newState, const std::string& reason = "");
-    
-    // Helper method to check for timeouts
-    bool isStateTimedOut(const NegotiationSessionData& session, std::chrono::milliseconds timeout = DEFAULT_NEGOTIATION_TIMEOUT) const;
-
+    // Member variables
     mutable std::mutex sessionsMutex_;
-    std::unordered_map<SessionId, NegotiationSessionData> sessions_;
-    std::atomic<SessionId> nextSessionId_;
+    std::unordered_map<NegotiationProtocol::SessionId, NegotiationSessionData> sessions_;
+    std::atomic<NegotiationProtocol::SessionId> nextSessionId_;
     Logger logger_;
     std::vector<StateChangeHandler> stateChangeHandlers_;
 
-    // --- Private helper methods for actual communication --- 
-    // These would interact with ConnectionManager, TransmissionManager etc.
-    // They are placeholders here.
-    bool sendProposal(const std::string& targetAgentId, SessionId sessionId, const NegotiableParams& params) {
-        // TODO: Implement actual network send logic
-        (void)targetAgentId; (void)sessionId; (void)params;
-        // Simulate success for now
-        return true;
-    }
-
-    bool sendResponse(SessionId sessionId, NegotiationResponse responseType, const std::optional<NegotiableParams>& params) {
-        // TODO: Implement actual network send logic
-        (void)sessionId; (void)responseType; (void)params;
-        // Simulate success for now
-        return true;
-    }
-
-     bool sendFinalization(SessionId sessionId, const NegotiableParams& finalParams) {
-        // TODO: Implement actual network send logic (e.g., ACK + final params)
-        (void)sessionId; (void)finalParams;
-        // Simulate success for now
-        return true;
-    }
-
-    bool sendReject(SessionId sessionId, const std::optional<std::string>& reason) {
-        // TODO: Implement actual network send logic for REJECT message
-        (void)sessionId; (void)reason;
-        // Simulate success for now
-        return true;
-    }
-
-    // Placeholder for handling incoming messages - would be called by network layer
-    // This is the entry point for network events related to negotiation.
-    void handleIncomingMessage(SessionId sessionId, MessageType type, const MessagePayload& payload);
-
-    // --- Methods for negotiation proposal and response handling ---
-    
-    /**
-     * @brief Creates a proposal based on local preferences
-     *
-     * @param preferences Local parameter preferences
-     * @return NegotiableParams A proposal based on the best local preferences
-     */
-    NegotiableParams createProposal(const ParameterPreference& preferences) {
-        // Try to create optimal parameters first
-        try {
-            return preferences.createOptimalParameters();
-        } catch (const std::runtime_error& e) {
-            logger_.warning("Failed to create optimal parameters: " + std::string(e.what()));
-            
-            // Fall back to minimum viable parameters
-            NegotiableParams fallback;
-            fallback.dataFormat = DataFormat::BINARY_CUSTOM;  // Most basic format
-            fallback.compressionAlgorithm = CompressionAlgorithm::NONE;
-            fallback.errorCorrection = ErrorCorrectionScheme::NONE;
-            fallback.encryptionAlgorithm = EncryptionAlgorithm::NONE;
-            fallback.keyExchangeMethod = KeyExchangeMethod::NONE;
-            fallback.authenticationMethod = AuthenticationMethod::NONE;
-            fallback.keySize = KeySize::NONE;
-            
-            return fallback;
-        }
-    }
-    
-    /**
-     * @brief Creates a counter-proposal that tries to accommodate both peers' preferences
-     *
-     * @param localPreferences The local agent's preferences
-     * @param remoteProposal The proposal received from the remote agent
-     * @return std::optional<NegotiableParams> A counter-proposal if possible, nullopt if no compatible settings
-     */
+    // --- Private helper method Declarations --- 
+    NegotiationSessionData& getSessionData(NegotiationProtocol::SessionId sessionId);
+    const NegotiationSessionData& getSessionData(NegotiationProtocol::SessionId sessionId) const;
+    bool transitionState(NegotiationProtocol::SessionId sessionId, NegotiationState newState, const std::string& reason = "");
+    bool isStateTimedOut(const NegotiationSessionData& session, std::chrono::milliseconds timeout = DEFAULT_NEGOTIATION_TIMEOUT) const;
+    bool sendProposal(const std::string& targetAgentId, NegotiationProtocol::SessionId sessionId, const NegotiableParams& params);
+    bool sendResponse(NegotiationProtocol::SessionId sessionId, NegotiationResponse responseType, const std::optional<NegotiableParams>& params);
+    bool sendFinalization(NegotiationProtocol::SessionId sessionId, const NegotiableParams& finalParams);
+    bool sendReject(NegotiationProtocol::SessionId sessionId, const std::optional<std::string>& reason);
+    void handleIncomingMessage(NegotiationProtocol::SessionId sessionId, MessageType type, const MessagePayload& payload);
+    NegotiableParams createProposal(const ParameterPreference& preferences);
     std::optional<NegotiableParams> createCounterProposal(
         const NegotiableParams& receivedParams,
         const ParameterPreference& preferences,
-        NegotiationSessionData& session) {
-        
-        // Store remote capabilities if not already stored
-        if (session.remoteFormats.empty()) {
-            session.remoteFormats.push_back(receivedParams.dataFormat);
-            session.remoteCompression.push_back(receivedParams.compressionAlgorithm);
-            session.remoteErrorCorrection.push_back(receivedParams.errorCorrection);
-            session.remoteEncryption.push_back(receivedParams.encryptionAlgorithm);
-            session.remoteKeyExchange.push_back(receivedParams.keyExchangeMethod);
-            session.remoteAuth.push_back(receivedParams.authenticationMethod);
-            session.remoteKeySizes.push_back(receivedParams.keySize);
-        }
-        
-        try {
-            // Try to create compatible parameters with fallback support
-            return preferences.buildCompatibleParamsWithFallbacks(
-                session.remoteFormats,
-                session.remoteCompression,
-                session.remoteErrorCorrection,
-                session.remoteEncryption,
-                session.remoteKeyExchange,
-                session.remoteAuth,
-                session.remoteKeySizes
-            );
-        } catch (const std::runtime_error& e) {
-            logger_.warning("Failed to create counter-proposal: " + std::string(e.what()));
-            return std::nullopt;
-        }
-    }
-    
-    /**
-     * @brief Evaluates a proposal against local preferences to determine if it's acceptable
-     *
-     * @param localPreferences The local agent's preferences
-     * @param proposal The proposal to evaluate
-     * @return NegotiationResponse ACCEPTED, COUNTER_PROPOSAL, or REJECTED
-     */
+        NegotiationSessionData& session
+    );
     NegotiationResponse evaluateProposal(
         const NegotiableParams& proposedParams,
         const ParameterPreference& preferences,
-        NegotiationSessionData& session) {
-        
-        // Store remote capabilities
-        session.remoteFormats.push_back(proposedParams.dataFormat);
-        session.remoteCompression.push_back(proposedParams.compressionAlgorithm);
-        session.remoteErrorCorrection.push_back(proposedParams.errorCorrection);
-        session.remoteEncryption.push_back(proposedParams.encryptionAlgorithm);
-        session.remoteKeyExchange.push_back(proposedParams.keyExchangeMethod);
-        session.remoteAuth.push_back(proposedParams.authenticationMethod);
-        session.remoteKeySizes.push_back(proposedParams.keySize);
-        
-        // Check if we've seen this exact proposal before
-        auto it = std::find(session.triedProposals.begin(), session.triedProposals.end(), proposedParams);
-        if (it != session.triedProposals.end()) {
-            logger_.warning("Received a previously tried proposal combination");
-            return NegotiationResponse::REJECTED;
-        }
-        
-        // Add to tried proposals
-        session.triedProposals.push_back(proposedParams);
-        
-        // Check compatibility with our requirements
-        if (preferences.isCompatibleWithRequirements(proposedParams)) {
-            return NegotiationResponse::ACCEPTED;
-        }
-        
-        // If not compatible but we haven't exceeded fallback attempts, try counter-proposal
-        if (session.fallbackAttempts < session.MAX_FALLBACK_ATTEMPTS) {
-            session.fallbackAttempts++;
-            return NegotiationResponse::COUNTER_PROPOSAL;
-        }
-        
-        // If we've exhausted fallback attempts, reject
-        return NegotiationResponse::REJECTED;
-    }
-    
-    /**
-     * @brief Handles an incoming proposal from a remote agent
-     * 
-     * @param sessionId The ID of the session receiving the proposal
-     * @param proposedParams The negotiable parameters proposed by the remote agent
-     * @return true if the proposal was handled successfully
-     * @return false if there was an error processing the proposal
-     */
-    bool handleProposal(SessionId sessionId, const NegotiableParams& proposedParams) {
-        std::lock_guard<std::mutex> lock(sessionsMutex_);
-        
-        auto& session = getSessionData(sessionId);
-        
-        // Create preferences for evaluation (this should be customizable per session in practice)
-        ParameterPreference preferences;
-        // ... setup preferences ...
-        
-        auto response = evaluateProposal(proposedParams, preferences, session);
-        
-        switch (response) {
-            case NegotiationResponse::ACCEPTED:
-                return acceptProposal(sessionId, proposedParams);
-                
-            case NegotiationResponse::COUNTER_PROPOSAL: {
-                auto counterProposal = createCounterProposal(proposedParams, preferences, session);
-                if (counterProposal) {
-                    session.counterProposal = *counterProposal;
-                    return sendResponse(sessionId, NegotiationResponse::COUNTER_PROPOSAL, *counterProposal);
-                }
-                // Fall through to rejection if counter-proposal creation fails
-            }
-                
-            case NegotiationResponse::REJECTED:
-            default:
-                return rejectProposal(sessionId, "Parameters not compatible with requirements");
-        }
-    }
-    
-    /**
-     * @brief Accepts a proposal in the current session
-     * 
-     * @param sessionId The ID of the session
-     * @param finalParams The parameters being accepted (optional, defaults to the initial proposal)
-     * @return true if accepted successfully
-     * @return false if there was an error
-     */
-    bool acceptProposal(SessionId sessionId, const std::optional<NegotiableParams>& finalParams = std::nullopt) {
-        std::lock_guard<std::mutex> lock(sessionsMutex_);
-        auto& session = getSessionData(sessionId); // Throws if not found
-        
-        // Only valid from PROPOSAL_RECEIVED state
-        if (session.state != NegotiationState::PROPOSAL_RECEIVED) {
-            logger_.error("Cannot accept proposal: Invalid state " + 
-                         StateTransitionValidator::stateToString(session.state));
-            return false;
-        }
-        
-        // Use the provided parameters if given, otherwise use the initial proposal
-        NegotiableParams paramsToAccept = finalParams.value_or(session.initialProposal);
-        
-        // Transition to RESPONDING state
-        if (!transitionState(sessionId, NegotiationState::RESPONDING, "Preparing acceptance")) {
-            return false;
-        }
-        
-        // Send ACCEPT response
-        bool sentOk = sendResponse(sessionId, NegotiationResponse::ACCEPTED, paramsToAccept);
-        
-        if (sentOk) {
-            // Record the final parameters
-            session.finalParams = paramsToAccept;
-            
-            // Transition to AWAITING_FINALIZATION state
-            return transitionState(sessionId, NegotiationState::AWAITING_FINALIZATION, 
-                                  "Acceptance sent, awaiting finalization");
-        } else {
-            // Failed to send acceptance
-            transitionState(sessionId, NegotiationState::FAILED, "Failed to send acceptance");
-            return false;
-        }
-    }
-    
-    /**
-     * @brief Rejects a proposal from the remote agent
-     * 
-     * @param sessionId The ID of the session
-     * @param reason Optional reason for rejection
-     * @return true if rejection was sent successfully
-     * @return false if there was an error
-     */
-    bool rejectProposal(SessionId sessionId, const std::optional<std::string>& reason = std::nullopt) {
-        std::lock_guard<std::mutex> lock(sessionsMutex_);
-        auto& session = getSessionData(sessionId); // Throws if not found
-        
-        // Only valid from PROPOSAL_RECEIVED state
-        if (session.state != NegotiationState::PROPOSAL_RECEIVED) {
-            logger_.error("Cannot reject proposal: Invalid state " + 
-                         StateTransitionValidator::stateToString(session.state));
-            return false;
-        }
-        
-        // Transition to RESPONDING state
-        if (!transitionState(sessionId, NegotiationState::RESPONDING, "Preparing rejection")) {
-            return false;
-        }
-        
-        // Send REJECT response
-        bool sentOk = sendResponse(sessionId, NegotiationResponse::REJECTED, std::nullopt);
-        
-        if (sentOk) {
-            // Transition to FAILED state
-            std::string failureReason = "Proposal rejected";
-            if (reason) {
-                failureReason += ": " + *reason;
-            }
-            return transitionState(sessionId, NegotiationState::FAILED, failureReason);
-        } else {
-            // Failed to send rejection
-            transitionState(sessionId, NegotiationState::FAILED, "Failed to send rejection");
-            return false;
-        }
-    }
+        NegotiationSessionData& session
+    );
+    bool handleProposal(NegotiationProtocol::SessionId sessionId, const NegotiableParams& proposedParams);
+    bool acceptProposal(NegotiationProtocol::SessionId sessionId, const std::optional<NegotiableParams>& finalParams);
+    bool rejectProposal(NegotiationProtocol::SessionId sessionId, const std::optional<std::string>& reason);
 
-    /**
-     * @brief Automatically process a proposal based on the local preferences
-     * 
-     * @param sessionId The ID of the session with a received proposal
-     * @param preferences The local preferences to use for evaluation
-     * @return true if the proposal was processed successfully (accepted, counter, or rejected)
-     * @return false if there was an error processing the proposal
-     */
-    bool autoProcessProposal(SessionId sessionId, const ParameterPreference& preferences) {
-        std::lock_guard<std::mutex> lock(sessionsMutex_);
-        auto& session = getSessionData(sessionId); // Throws if not found
-        
-        // Verify we're in the correct state
-        if (session.state != NegotiationState::PROPOSAL_RECEIVED) {
-            logger_.error("Cannot auto-process proposal: Invalid state " + 
-                         StateTransitionValidator::stateToString(session.state) + 
-                         ", expected PROPOSAL_RECEIVED");
-            return false;
-        }
-        
-        // Log initial proposal
-        logger_.info("Auto-processing proposal for session " + std::to_string(sessionId) + 
-                    ". Incoming format: " + std::to_string(static_cast<int>(session.initialProposal.dataFormat)) +
-                    ", compression: " + std::to_string(static_cast<int>(session.initialProposal.compressionAlgorithm)) + 
-                    ", error correction: " + std::to_string(static_cast<int>(session.initialProposal.errorCorrection)) +
-                    ", encryption: " + std::to_string(static_cast<int>(session.initialProposal.encryptionAlgorithm)) +
-                    ", key exchange: " + std::to_string(static_cast<int>(session.initialProposal.keyExchangeMethod)) +
-                    ", auth method: " + std::to_string(static_cast<int>(session.initialProposal.authenticationMethod)) +
-                    ", key size: " + std::to_string(static_cast<int>(session.initialProposal.keySize)));
-        
-        // Evaluate the proposal against preferences
-        auto response = evaluateProposal(session.initialProposal, preferences, session);
-        
-        // Process based on evaluation result
-        switch (response) {
-            case NegotiationResponse::ACCEPTED:
-                logger_.info("Auto-accepting proposal for session " + std::to_string(sessionId));
-                return acceptProposal(sessionId, session.finalParams);
-                
-            case NegotiationResponse::COUNTER_PROPOSAL: {
-                auto counterProposal = createCounterProposal(session.initialProposal, preferences, session);
-                if (counterProposal) {
-                    logger_.info("Auto-countering proposal for session " + std::to_string(sessionId) + 
-                               ". Counter format: " + std::to_string(static_cast<int>(counterProposal->dataFormat)) +
-                               ", compression: " + std::to_string(static_cast<int>(counterProposal->compressionAlgorithm)) + 
-                               ", error correction: " + std::to_string(static_cast<int>(counterProposal->errorCorrection)) +
-                               ", encryption: " + std::to_string(static_cast<int>(counterProposal->encryptionAlgorithm)) +
-                               ", key exchange: " + std::to_string(static_cast<int>(counterProposal->keyExchangeMethod)) +
-                               ", auth method: " + std::to_string(static_cast<int>(counterProposal->authenticationMethod)) +
-                               ", key size: " + std::to_string(static_cast<int>(counterProposal->keySize)));
-                    return respondToNegotiation(sessionId, NegotiationResponse::COUNTER_PROPOSAL, counterProposal);
-                } else {
-                    logger_.error("Auto-process error: Counter proposal lacks parameters");
-                    return false;
-                }
-            }
-                
-            case NegotiationResponse::REJECTED:
-                logger_.info("Auto-rejecting proposal for session " + std::to_string(sessionId) + 
-                           ": Incompatible with requirements");
-                return rejectProposal(sessionId, "Incompatible with local requirements");
-                
-            default:
-                logger_.error("Auto-process error: Unknown evaluation result");
-                return false;
-        }
-    }
-};
+}; // End of ConcreteNegotiationProtocol class definition
 
-// --- New State Transition Implementation ---
-bool ConcreteNegotiationProtocol::transitionState(SessionId sessionId, NegotiationState newState, const std::string& reason) {
-    std::lock_guard<std::mutex> lock(sessionsMutex_);
-    auto& session = getSessionData(sessionId);
-    NegotiationState currentState = session.state;
-    
-    // Validate the state transition
-    if (!StateTransitionValidator::isValidTransition(currentState, newState)) {
-        logger_.error("Invalid state transition: " + 
-                     StateTransitionValidator::stateToString(currentState) + " -> " + 
-                     StateTransitionValidator::stateToString(newState) + 
-                     (reason.empty() ? "" : " (" + reason + ")"));
-        return false;
-    }
-    
-    // Update the state
-    session.state = newState;
-    
-    // Record timestamp for the new state
-    session.stateTimestamps[newState] = std::chrono::steady_clock::now();
-    
-    // Clear retry count if moving to a new state (not repeating the same state)
-    if (currentState != newState) {
-        session.retryCount = 0;
-    }
-    
-    // Log the transition
-    logger_.info("Session " + std::to_string(sessionId) + " state transition: " + 
-                StateTransitionValidator::stateToString(currentState) + " -> " + 
-                StateTransitionValidator::stateToString(newState) + 
-                (reason.empty() ? "" : " (" + reason + ")"));
-    
-    // Notify event handlers
-    for (const auto& handler : stateChangeHandlers_) {
-        try {
-            handler(currentState, newState, reason);
-        } catch (const std::exception& e) {
-            logger_.error("Exception in state change handler: " + std::string(e.what()));
-        }
-    }
-    
-    return true;
-}
-
-// --- Timeout Checking Implementation ---
-bool ConcreteNegotiationProtocol::isStateTimedOut(const NegotiationSessionData& session, std::chrono::milliseconds timeout) const {
-    auto currentState = session.state;
-    auto it = session.stateTimestamps.find(currentState);
-    
-    if (it == session.stateTimestamps.end()) {
-        // No timestamp for current state, use creation time as fallback
-        return (std::chrono::steady_clock::now() - session.createdTime) > timeout;
-    }
-    
-    return (std::chrono::steady_clock::now() - it->second) > timeout;
-}
-
-// --- Method Implementations --- 
-
+// --- Definitions of PUBLIC methods --- 
+// (These remain outside the class definition)
 NegotiationProtocol::SessionId ConcreteNegotiationProtocol::initiateSession(const std::string& targetAgentId, const NegotiableParams& proposedParams) {
     // Validate params before proceeding
     auto validationResult = validation::validateParameterSet(proposedParams);
@@ -1503,9 +551,9 @@ NegotiationProtocol::SessionId ConcreteNegotiationProtocol::initiateSession(cons
                                 validation::validationResultToString(validationResult));
     }
     
-    SessionId sessionId = nextSessionId_.fetch_add(1);
+    SessionId sessionId = nextSessionId_.fetch_add(1); // Use class SessionId alias
     
-    // Create and initialize session data
+    // Create and initialize session data (Use nested struct name)
     NegotiationSessionData sessionData;
     sessionData.initiatorAgentId = ""; // TODO: Get current agent ID
     sessionData.targetAgentId = targetAgentId;
@@ -1602,7 +650,6 @@ bool ConcreteNegotiationProtocol::respondToNegotiation(SessionId sessionId, Nego
     }
 }
 
-// (Initiator Role) Accept a counter-proposal
 bool ConcreteNegotiationProtocol::acceptCounterProposal(SessionId sessionId) {
     std::lock_guard<std::mutex> lock(sessionsMutex_);
     auto& session = getSessionData(sessionId);
@@ -1689,7 +736,7 @@ NegotiableParams ConcreteNegotiationProtocol::finalizeSession(SessionId sessionI
         std::string errorMsg = "Failed to send finalization message";
         logger_.error(errorMsg + " for session " + std::to_string(sessionId));
         transitionState(sessionId, NegotiationState::FAILED, errorMsg);
-        transitionState(sessionId, NegotiationState::FAILED, "Failed to send finalization");
+        transitionState(sessionId, NegotiationState::FAILED, "Failed to send finalization"); // Duplicate transition?
         throw std::runtime_error("Failed to send finalization message for session");
     }
 }
@@ -1745,199 +792,6 @@ bool ConcreteNegotiationProtocol::closeSession(SessionId sessionId) {
     return transitionState(sessionId, NegotiationState::CLOSED, "Session closed by local agent");
 }
 
-// --- Private Helper Implementations ---
-
-ConcreteNegotiationProtocol::NegotiationSessionData& ConcreteNegotiationProtocol::getSessionData(SessionId sessionId) {
-     auto it = sessions_.find(sessionId);
-    if (it == sessions_.end()) {
-        throw std::runtime_error("Invalid or unknown session ID: " + std::to_string(sessionId));
-    }
-    return it->second;
-}
-
-const ConcreteNegotiationProtocol::NegotiationSessionData& ConcreteNegotiationProtocol::getSessionData(SessionId sessionId) const {
-    auto it = sessions_.find(sessionId);
-    if (it == sessions_.end()) {
-        throw std::runtime_error("Invalid or unknown session ID: " + std::to_string(sessionId));
-    }
-    return it->second;
-}
-
-// --- Incoming Message Handler Implementation ---
-
-void ConcreteNegotiationProtocol::handleIncomingMessage(SessionId sessionId, MessageType type, const MessagePayload& payload) {
-    std::lock_guard<std::mutex> lock(sessionsMutex_);
-    try {
-        auto& session = getSessionData(sessionId); // Find the session or throw
-
-        // Create a string representation of the message type for logging
-        std::string messageTypeStr;
-        switch (type) {
-            case MessageType::PROPOSE: messageTypeStr = "PROPOSE"; break;
-            case MessageType::ACCEPT: messageTypeStr = "ACCEPT"; break;
-            case MessageType::COUNTER: messageTypeStr = "COUNTER"; break;
-            case MessageType::REJECT: messageTypeStr = "REJECT"; break;
-            case MessageType::FINALIZE: messageTypeStr = "FINALIZE"; break;
-            case MessageType::CLOSE: messageTypeStr = "CLOSE"; break;
-            default: messageTypeStr = "UNKNOWN"; break;
-        }
-
-        logger_.info("Received " + messageTypeStr + " message for session " + std::to_string(sessionId) + 
-                    " in state " + StateTransitionValidator::stateToString(session.state));
-
-        // Process message based on current state and message type
-        switch (session.state) {
-            case NegotiationState::IDLE: // Initial state
-                // The only valid message in IDLE state is a PROPOSE
-                if (type == MessageType::PROPOSE) {
-                    if (const auto* proposePayload = std::get_if<ProposePayload>(&payload)) {
-                        // Handle proposal from remote agent
-                        handleProposal(sessionId, proposePayload->params);
-                    } else {
-                        transitionState(sessionId, NegotiationState::FAILED, "Invalid payload type for PROPOSE message");
-                    }
-                } else {
-                    logger_.warning("Ignoring unexpected " + messageTypeStr + " message in IDLE state");
-                }
-                break;
-
-            case NegotiationState::AWAITING_RESPONSE: // Initiator waiting for response
-                switch (type) {
-                    case MessageType::ACCEPT:
-                        // Initiator receives acceptance of its initial proposal.
-                        if (std::holds_alternative<AcceptPayload>(payload) || std::holds_alternative<std::monostate>(payload)) {
-                            // AcceptPayload might optionally echo params, but we rely on our initial ones.
-                            session.finalParams = session.initialProposal;
-                            transitionState(sessionId, NegotiationState::FINALIZING, "Received acceptance of initial proposal");
-                        } else {
-                            transitionState(sessionId, NegotiationState::FAILED, "Invalid payload type for ACCEPT message");
-                        }
-                        break;
-                    case MessageType::COUNTER:
-                        // Initiator receives a counter-proposal.
-                        if (const auto* counterPayload = std::get_if<CounterPayload>(&payload)) {
-                            session.counterProposal = counterPayload->params;
-                            transitionState(sessionId, NegotiationState::COUNTER_RECEIVED, "Received counter-proposal");
-                        } else {
-                            transitionState(sessionId, NegotiationState::FAILED, "Invalid payload type for COUNTER message");
-                        }
-                        break;
-                    case MessageType::REJECT:
-                        // Initiator receives rejection of its initial proposal.
-                        std::string reason = "Proposal rejected by peer";
-                        if (const auto* rejectPayload = std::get_if<RejectPayload>(&payload)) {
-                            if (rejectPayload->reason) {
-                                reason = "Proposal rejected: " + *rejectPayload->reason;
-                            }
-                        }
-                        transitionState(sessionId, NegotiationState::FAILED, reason);
-                        break;
-                    case MessageType::CLOSE:
-                        // Handle potential early close
-                        transitionState(sessionId, NegotiationState::CLOSED, "Session closed by peer while awaiting response");
-                        break;
-                    default:
-                        // Invalid message type for this state
-                        transitionState(sessionId, NegotiationState::FAILED, 
-                                      "Protocol violation: Unexpected " + messageTypeStr + " message in AWAITING_RESPONSE state");
-                        break;
-                }
-                break;
-
-            case NegotiationState::AWAITING_FINALIZATION: // Responder waiting for finalization
-                 switch (type) {
-                    case MessageType::FINALIZE:
-                        // Responder receives final confirmation from Initiator.
-                        if (const auto* finalizePayload = std::get_if<FinalizePayload>(&payload)) {
-                            // Verify finalized params match expectations (optional but good practice)
-                            session.finalParams = finalizePayload->params;
-                            transitionState(sessionId, NegotiationState::FINALIZED, "Negotiation successfully finalized");
-                        } else {
-                            transitionState(sessionId, NegotiationState::FAILED, "Invalid payload type for FINALIZE message");
-                        }
-                        break;
-                    case MessageType::REJECT: // Initiator could reject a counter-proposal
-                        // Responder receives rejection, likely of its counter-proposal.
-                        std::string reason = "Counter-proposal rejected by peer";
-                        if (const auto* rejectPayload = std::get_if<RejectPayload>(&payload)) {
-                            if (rejectPayload->reason) {
-                                reason = "Counter-proposal rejected: " + *rejectPayload->reason;
-                            }
-                        }
-                        transitionState(sessionId, NegotiationState::FAILED, reason);
-                        break;
-                     case MessageType::CLOSE:
-                        transitionState(sessionId, NegotiationState::CLOSED, "Session closed by peer while awaiting finalization");
-                        break;
-                    default:
-                        // Invalid message type for this state
-                        transitionState(sessionId, NegotiationState::FAILED, 
-                                      "Protocol violation: Unexpected " + messageTypeStr + " message in AWAITING_FINALIZATION state");
-                        break;
-                }
-                break;
-            
-             case NegotiationState::PROPOSAL_RECEIVED: // Responder deciding
-             case NegotiationState::RESPONDING:        // Responder sending response
-             case NegotiationState::COUNTER_RECEIVED: // Initiator deciding on counter
-             case NegotiationState::FINALIZING:      // Initiator sending finalize
-                // Generally, should not receive messages in these transient/active states,
-                // except perhaps CLOSE
-                 if (type == MessageType::CLOSE) {
-                     transitionState(sessionId, NegotiationState::CLOSED, "Session closed by peer during active phase");
-                 } else {
-                    // Unexpected message in this state, but don't fail the session
-                    logger_.warning("Unexpected " + messageTypeStr + " message received in " + 
-                                 StateTransitionValidator::stateToString(session.state) + " state");
-                 }
-                break;
-
-            case NegotiationState::FINALIZED:
-            case NegotiationState::FAILED:
-            case NegotiationState::CLOSED:
-                // Session is already in a terminal state. Should only potentially handle CLOSE
-                 if (type == MessageType::CLOSE) {
-                     // Only log, don't transition if already in CLOSED state
-                     if (session.state != NegotiationState::CLOSED) {
-                         transitionState(sessionId, NegotiationState::CLOSED, "Session closed by peer");
-                     }
-                 } else {
-                     logger_.info("Ignoring " + messageTypeStr + " message for session in terminal state " + 
-                                StateTransitionValidator::stateToString(session.state));
-                 }
-                break;
-            
-            case NegotiationState::INITIATING: // Should not receive messages while initiating
-                 logger_.warning("Received " + messageTypeStr + " message for session in unexpected state " + 
-                              StateTransitionValidator::stateToString(session.state));
-                 break;
-        }
-
-    } catch (const std::runtime_error& e) {
-        logger_.error("Runtime error handling message for session " + std::to_string(sessionId) + ": " + e.what());
-        
-        // Attempt to mark session as FAILED if it exists
-        try {
-            auto it = sessions_.find(sessionId);
-            if (it != sessions_.end()) {
-                transitionState(sessionId, NegotiationState::FAILED, "Error processing message: " + std::string(e.what()));
-            }
-        } catch (...) { /* Ignore potential recursive exceptions */ }
-        
-    } catch (const std::bad_variant_access& e) {
-        logger_.error("Bad variant access for session " + std::to_string(sessionId) + ": " + e.what());
-        
-        // Attempt to mark session as FAILED if it exists
-        try {
-            auto it = sessions_.find(sessionId);
-            if (it != sessions_.end()) {
-                transitionState(sessionId, NegotiationState::FAILED, "Error processing message payload: " + std::string(e.what()));
-            }
-        } catch (...) { /* Ignore */ }
-    }
-}
-
-// --- Reject Counter Implementation ---
 bool ConcreteNegotiationProtocol::rejectCounterProposal(SessionId sessionId, const std::optional<std::string>& reason) {
     std::lock_guard<std::mutex> lock(sessionsMutex_);
     auto& session = getSessionData(sessionId);
@@ -1969,8 +823,239 @@ bool ConcreteNegotiationProtocol::rejectCounterProposal(SessionId sessionId, con
     }
 }
 
-// --- Factory Function ---
-// Create a NegotiationProtocol instance with default configuration
+// --- Definitions of PRIVATE helper methods --- 
+// (Must be qualified with class name)
+
+NegotiationSessionData& ConcreteNegotiationProtocol::getSessionData(NegotiationProtocol::SessionId sessionId) {
+    auto it = sessions_.find(sessionId);
+    if (it == sessions_.end()) {
+        throw std::runtime_error("Invalid or unknown session ID: " + std::to_string(sessionId));
+    }
+    return it->second;
+}
+
+const NegotiationSessionData& ConcreteNegotiationProtocol::getSessionData(NegotiationProtocol::SessionId sessionId) const {
+    auto it = sessions_.find(sessionId);
+    if (it == sessions_.end()) {
+        throw std::runtime_error("Invalid or unknown session ID: " + std::to_string(sessionId));
+    }
+    return it->second;
+}
+
+bool ConcreteNegotiationProtocol::transitionState(NegotiationProtocol::SessionId sessionId, NegotiationState newState, const std::string& reason) {
+    std::lock_guard<std::mutex> lock(sessionsMutex_);
+    auto& session = getSessionData(sessionId); // Calls the member function getSessionData
+    NegotiationState currentState = session.state;
+    
+    if (!StateTransitionValidator::isValidTransition(currentState, newState)) {
+        logger_.error("Invalid state transition: " + 
+                     StateTransitionValidator::stateToString(currentState) + " -> " + 
+                     StateTransitionValidator::stateToString(newState) + 
+                     (reason.empty() ? "" : " (" + reason + ")"));
+        return false;
+    }
+    
+    session.state = newState;
+    session.stateTimestamps[newState] = std::chrono::steady_clock::now();
+    if (currentState != newState) {
+        session.retryCount = 0;
+    }
+    
+    logger_.info("Session " + std::to_string(sessionId) + " state transition: " + 
+                StateTransitionValidator::stateToString(currentState) + " -> " + 
+                StateTransitionValidator::stateToString(newState) + 
+                (reason.empty() ? "" : " (" + reason + ")"));
+    
+    for (const auto& handler : stateChangeHandlers_) {
+        try {
+            handler(currentState, newState, reason);
+        } catch (const std::exception& e) {
+            logger_.error("Exception in state change handler: " + std::string(e.what()));
+        }
+    }
+    return true;
+}
+
+bool ConcreteNegotiationProtocol::isStateTimedOut(const NegotiationSessionData& session, std::chrono::milliseconds timeout) const {
+    auto currentState = session.state;
+    auto it = session.stateTimestamps.find(currentState);
+    if (it == session.stateTimestamps.end()) {
+        return (std::chrono::steady_clock::now() - session.createdTime) > timeout;
+    }
+    return (std::chrono::steady_clock::now() - it->second) > timeout;
+}
+
+bool ConcreteNegotiationProtocol::sendProposal(const std::string& targetAgentId, NegotiationProtocol::SessionId sessionId, const NegotiableParams& params) {
+    (void)targetAgentId; (void)sessionId; (void)params;
+    return true; // Placeholder
+}
+
+bool ConcreteNegotiationProtocol::sendResponse(NegotiationProtocol::SessionId sessionId, NegotiationResponse responseType, const std::optional<NegotiableParams>& params) {
+    (void)sessionId; (void)responseType; (void)params;
+    return true; // Placeholder
+}
+
+bool ConcreteNegotiationProtocol::sendFinalization(NegotiationProtocol::SessionId sessionId, const NegotiableParams& finalParams) {
+    (void)sessionId; (void)finalParams;
+    return true; // Placeholder
+}
+
+bool ConcreteNegotiationProtocol::sendReject(NegotiationProtocol::SessionId sessionId, const std::optional<std::string>& reason) {
+    (void)sessionId; (void)reason;
+    return true; // Placeholder
+}
+
+void ConcreteNegotiationProtocol::handleIncomingMessage(NegotiationProtocol::SessionId sessionId, MessageType type, const MessagePayload& payload) {
+    std::lock_guard<std::mutex> lock(sessionsMutex_);
+    try {
+        auto& session = getSessionData(sessionId);
+        std::string messageTypeStr;
+        switch (type) {
+            case MessageType::PROPOSE: messageTypeStr = "PROPOSE"; break;
+            case MessageType::ACCEPT: messageTypeStr = "ACCEPT"; break;
+            case MessageType::COUNTER: messageTypeStr = "COUNTER"; break;
+            case MessageType::REJECT: messageTypeStr = "REJECT"; break;
+            case MessageType::FINALIZE: messageTypeStr = "FINALIZE"; break;
+            case MessageType::CLOSE: messageTypeStr = "CLOSE"; break;
+            default: messageTypeStr = "UNKNOWN"; break;
+        }
+
+        logger_.info("Received " + messageTypeStr + " message for session " + std::to_string(sessionId) + 
+                    " in state " + StateTransitionValidator::stateToString(session.state));
+
+        // Process message based on current state and message type
+        switch (session.state) {
+            // ... cases for different states ...
+        }
+    } catch (const std::runtime_error& e) {
+        logger_.error("Runtime error handling message for session " + std::to_string(sessionId) + ": " + e.what());
+        // Attempt to mark session as FAILED
+    } catch (const std::bad_variant_access& e) {
+        logger_.error("Bad variant access for session " + std::to_string(sessionId) + ": " + e.what());
+        // Attempt to mark session as FAILED
+    }
+}
+
+NegotiableParams ConcreteNegotiationProtocol::createProposal(const ParameterPreference& preferences) {
+    try {
+        return preferences.createOptimalParameters();
+    } catch (const std::runtime_error& e) {
+        logger_.warning("Failed to create optimal parameters: " + std::string(e.what()));
+        NegotiableParams fallback;
+        // ... set fallback parameters ...
+        return fallback;
+    }
+}
+
+std::optional<NegotiableParams> ConcreteNegotiationProtocol::createCounterProposal(
+    const NegotiableParams& receivedParams,
+    const ParameterPreference& preferences,
+    NegotiationSessionData& session) 
+{
+    // Note: The check for remoteFormats.empty() and storing capabilities
+    // should likely happen *before* this function is called, e.g., 
+    // when the initial proposal is received and evaluated.
+    // if (session.remoteFormats.empty()) { ... }
+
+    try {
+        // Call with all required arguments from the session
+        return preferences.buildCompatibleParamsWithFallbacks(
+            session.remoteFormats,
+            session.remoteCompression,
+            session.remoteErrorCorrection,
+            session.remoteEncryption,
+            session.remoteKeyExchange,
+            session.remoteAuth,
+            session.remoteKeySizes
+        );
+    } catch (const std::runtime_error& e) {
+        logger_.warning("Failed to create counter-proposal: " + std::string(e.what()));
+        return std::nullopt;
+    }
+}
+
+NegotiationResponse ConcreteNegotiationProtocol::evaluateProposal(
+    const NegotiableParams& proposedParams,
+    const ParameterPreference& preferences,
+    NegotiationSessionData& session)
+{
+    // Store remote capabilities
+    // Check if proposal already tried
+    // Check compatibility
+    // Check fallback attempts
+    return NegotiationResponse::REJECTED; // Placeholder return
+}
+
+bool ConcreteNegotiationProtocol::handleProposal(NegotiationProtocol::SessionId sessionId, const NegotiableParams& proposedParams) {
+    std::lock_guard<std::mutex> lock(sessionsMutex_);
+    auto& session = getSessionData(sessionId);
+    ParameterPreference preferences; // Placeholder
+    auto response = evaluateProposal(proposedParams, preferences, session);
+    // ... switch statement based on response ...
+    return false; // Placeholder return
+}
+
+bool ConcreteNegotiationProtocol::acceptProposal(NegotiationProtocol::SessionId sessionId, const std::optional<NegotiableParams>& finalParams) {
+    std::lock_guard<std::mutex> lock(sessionsMutex_);
+    auto& session = getSessionData(sessionId);
+    // ... state validation, send response, transition state ...
+    return false; // Placeholder return
+}
+
+bool ConcreteNegotiationProtocol::rejectProposal(NegotiationProtocol::SessionId sessionId, const std::optional<std::string>& reason) {
+    std::lock_guard<std::mutex> lock(sessionsMutex_);
+    auto& session = getSessionData(sessionId);
+    // ... state validation, send response, transition state ...
+    return false; // Placeholder return
+}
+
+// --- Definitions for ParameterPreference methods (declared in header) ---
+
+// Placeholder definition - Replace with actual logic
+NegotiableParams ParameterPreference::createOptimalParameters() const {
+    // TODO: Implement logic to select the highest-ranked options
+    // from the preference lists (dataFormats, compressionAlgorithms, etc.)
+    // respecting compatibility rules.
+    // Throw std::runtime_error if no valid set can be formed based on requirements.
+    
+    NegotiableParams optimalParams;
+    // Example: Assume the first ranked option is the most preferred
+    if (!dataFormats.empty()) optimalParams.dataFormat = dataFormats[0].value;
+    if (!compressionAlgorithms.empty()) optimalParams.compressionAlgorithm = compressionAlgorithms[0].value;
+    if (!errorCorrectionSchemes.empty()) optimalParams.errorCorrection = errorCorrectionSchemes[0].value;
+    // Add logic for security params if needed
+
+    // Validate the created set (optional but recommended)
+    // if (!validateSecurityParameters(optimalParams)) { 
+    //    throw std::runtime_error("Could not create valid optimal security parameters"); 
+    // }
+
+    return optimalParams; 
+}
+
+// Placeholder definition - Replace with actual logic
+NegotiableParams ParameterPreference::buildCompatibleParamsWithFallbacks(
+    [[maybe_unused]] const std::vector<DataFormat>& remoteFormats,
+    [[maybe_unused]] const std::vector<CompressionAlgorithm>& remoteCompression,
+    [[maybe_unused]] const std::vector<ErrorCorrectionScheme>& remoteErrorCorrection,
+    [[maybe_unused]] const std::vector<EncryptionAlgorithm>& remoteEncryption,
+    [[maybe_unused]] const std::vector<KeyExchangeMethod>& remoteKeyExchange,
+    [[maybe_unused]] const std::vector<AuthenticationMethod>& remoteAuth,
+    [[maybe_unused]] const std::vector<KeySize>& remoteKeySizes) const 
+{
+    // TODO: Implement logic to find the best intersection between local preferences
+    // (including fallbacks) and remote capabilities. Prioritize higher-ranked local options.
+    // Start with optimal, then iterate through fallbacks if no match found.
+    
+    NegotiableParams compatibleParams = createOptimalParameters(); // Start with local optimal
+    
+    // Example simplified logic: Just return the locally optimal for now
+    // A real implementation would involve matching against remote capabilities.
+
+    return compatibleParams;
+}
+
+// Factory function remains outside
 std::unique_ptr<NegotiationProtocol> createNegotiationProtocol(bool enableLogging) {
     return std::make_unique<ConcreteNegotiationProtocol>(enableLogging);
 }

@@ -5,6 +5,11 @@
 
 using namespace xenocomm::extensions;
 using json = nlohmann::json;
+// Add namespaces for protocol variant related classes
+using xenocomm::ProtocolVariant;
+using xenocomm::MessageFormat;
+using xenocomm::StateTransitions;
+using xenocomm::ProtocolChange;
 
 class CompatibilityCheckerTest : public ::testing::Test {
 protected:
@@ -186,9 +191,4 @@ TEST_F(CompatibilityCheckerTest, SingleVariantValidation) {
 
     std::vector<ProtocolVariant> variants = {v1};
     EXPECT_TRUE(checker->validateVariantSet(variants));
-}
-
-int main(int argc, char **argv) {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 } 

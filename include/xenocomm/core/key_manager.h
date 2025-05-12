@@ -6,7 +6,7 @@
 #include <chrono>
 #include <optional>
 #include <unordered_map>
-#include "xenocomm/utils/result.h"
+#include "xenocomm/utils/result.hpp"
 #include "xenocomm/core/security_config.hpp"
 
 namespace xenocomm {

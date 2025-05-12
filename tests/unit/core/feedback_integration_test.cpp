@@ -10,13 +10,13 @@ namespace {
 
 class MockConnectionManager : public core::ConnectionManager {
 public:
-    bool is_connected() const override { return true; }
-    Result<void> send(const std::vector<uint8_t>& data) override {
+    bool is_connected() const { return true; }
+    Result<void> send(const std::vector<uint8_t>& data) {
         last_sent_data_ = data;
-        return Result<void>::Success();
+        return Result<void>();
     }
-    Result<std::vector<uint8_t>> receive() override {
-        return Result<std::vector<uint8_t>>::Success(last_sent_data_);
+    Result<std::vector<uint8_t>> receive() {
+        return Result<std::vector<uint8_t>>(last_sent_data_);
     }
 private:
     std::vector<uint8_t> last_sent_data_;
@@ -85,28 +85,28 @@ protected:
 };
 
 TEST_F(FeedbackIntegrationTest, StartAndStopIntegration) {
-    ASSERT_TRUE(integration_->start().isSuccess());
+    ASSERT_TRUE(integration_->start().has_value());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     integration_->stop();
 }
 
 TEST_F(FeedbackIntegrationTest, ErrorRateTriggersStrategyUpdate) {
-    ASSERT_TRUE(integration_->start().isSuccess());
+    ASSERT_TRUE(integration_->start().has_value());
     
     // Get initial recommendation
     auto initial_result = integration_->get_latest_recommendation();
-    ASSERT_TRUE(initial_result.isSuccess());
+    ASSERT_TRUE(initial_result.has_value());
     auto initial_rec = initial_result.value();
     
     // Simulate error condition
     SimulateErrorCondition();
     
     // Force strategy update
-    ASSERT_TRUE(integration_->update_strategy().isSuccess());
+    ASSERT_TRUE(integration_->update_strategy().has_value());
     
     // Get new recommendation
     auto updated_result = integration_->get_latest_recommendation();
-    ASSERT_TRUE(updated_result.isSuccess());
+    ASSERT_TRUE(updated_result.has_value());
     auto updated_rec = updated_result.value();
     
     // Verify error correction was increased
@@ -117,22 +117,22 @@ TEST_F(FeedbackIntegrationTest, ErrorRateTriggersStrategyUpdate) {
 }
 
 TEST_F(FeedbackIntegrationTest, LatencyTriggersFragmentSizeAdjustment) {
-    ASSERT_TRUE(integration_->start().isSuccess());
+    ASSERT_TRUE(integration_->start().has_value());
     
     // Get initial recommendation
     auto initial_result = integration_->get_latest_recommendation();
-    ASSERT_TRUE(initial_result.isSuccess());
+    ASSERT_TRUE(initial_result.has_value());
     auto initial_rec = initial_result.value();
     
     // Simulate latency increase
     SimulateLatencyIncrease();
     
     // Force strategy update
-    ASSERT_TRUE(integration_->update_strategy().isSuccess());
+    ASSERT_TRUE(integration_->update_strategy().has_value());
     
     // Get new recommendation
     auto updated_result = integration_->get_latest_recommendation();
-    ASSERT_TRUE(updated_result.isSuccess());
+    ASSERT_TRUE(updated_result.has_value());
     auto updated_rec = updated_result.value();
     
     // Verify fragment size was adjusted
@@ -144,22 +144,22 @@ TEST_F(FeedbackIntegrationTest, LatencyTriggersFragmentSizeAdjustment) {
 }
 
 TEST_F(FeedbackIntegrationTest, ThroughputTriggersWindowSizeAdjustment) {
-    ASSERT_TRUE(integration_->start().isSuccess());
+    ASSERT_TRUE(integration_->start().has_value());
     
     // Get initial recommendation
     auto initial_result = integration_->get_latest_recommendation();
-    ASSERT_TRUE(initial_result.isSuccess());
+    ASSERT_TRUE(initial_result.has_value());
     auto initial_rec = initial_result.value();
     
     // Simulate throughput decrease
     SimulateThroughputDecrease();
     
     // Force strategy update
-    ASSERT_TRUE(integration_->update_strategy().isSuccess());
+    ASSERT_TRUE(integration_->update_strategy().has_value());
     
     // Get new recommendation
     auto updated_result = integration_->get_latest_recommendation();
-    ASSERT_TRUE(updated_result.isSuccess());
+    ASSERT_TRUE(updated_result.has_value());
     auto updated_rec = updated_result.value();
     
     // Verify window size was adjusted
@@ -172,15 +172,15 @@ TEST_F(FeedbackIntegrationTest, ThroughputTriggersWindowSizeAdjustment) {
 
 TEST_F(FeedbackIntegrationTest, StrategyCallbackIsInvoked) {
     bool callback_invoked = false;
-    StrategyRecommendation received_rec;
+    FeedbackIntegration::StrategyRecommendation received_rec;
     
     integration_->set_strategy_callback(
-        [&](const StrategyRecommendation& rec) {
+        [&](const FeedbackIntegration::StrategyRecommendation& rec) {
             callback_invoked = true;
             received_rec = rec;
         });
     
-    ASSERT_TRUE(integration_->start().isSuccess());
+    ASSERT_TRUE(integration_->start().has_value());
     
     // Simulate conditions that should trigger an update
     SimulateErrorCondition();
@@ -188,7 +188,7 @@ TEST_F(FeedbackIntegrationTest, StrategyCallbackIsInvoked) {
     SimulateThroughputDecrease();
     
     // Force strategy update
-    ASSERT_TRUE(integration_->update_strategy().isSuccess());
+    ASSERT_TRUE(integration_->update_strategy().has_value());
     
     // Verify callback was invoked
     EXPECT_TRUE(callback_invoked);
@@ -198,7 +198,7 @@ TEST_F(FeedbackIntegrationTest, StrategyCallbackIsInvoked) {
 }
 
 TEST_F(FeedbackIntegrationTest, ConfigurationUpdate) {
-    ASSERT_TRUE(integration_->start().isSuccess());
+    ASSERT_TRUE(integration_->start().has_value());
     
     // Create new configuration
     FeedbackIntegration::Config new_config;

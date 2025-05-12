@@ -1,9 +1,10 @@
 #pragma once
 
+#include "xenocomm/core/connection_manager.hpp"
 #include "xenocomm/core/transport_protocol.hpp"
 #include "xenocomm/core/security_manager.h"
 #include "xenocomm/core/security_config.hpp"
-#include "xenocomm/core/transport_interface.hpp"
+#include <openssl/x509.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -75,6 +76,18 @@ public:
     void setErrorCallback(std::function<void(TransportError, const std::string&)> callback) override;
     bool checkHealth() override;
 
+    // Added missing overrides from TransportProtocol
+    bool getPeerAddress(std::string& address, uint16_t& port) override;
+    int getSocketFd() const override;
+    bool setNonBlocking(bool nonBlocking) override;
+    bool setReceiveTimeout(const std::chrono::milliseconds& timeout) override;
+    bool setSendTimeout(const std::chrono::milliseconds& timeout) override;
+    bool setKeepAlive(bool enable) override;
+    bool setTcpNoDelay(bool enable) override;
+    bool setReuseAddress(bool enable) override;
+    bool setReceiveBufferSize(size_t size) override;
+    bool setSendBufferSize(size_t size) override;
+
     /**
      * @brief Get the negotiated protocol via ALPN
      * 
@@ -124,6 +137,12 @@ public:
      * @return Result<void> Success if all data was sent, error otherwise
      */
     Result<void> sendv(const std::vector<std::vector<uint8_t>>& buffers);
+
+    // Method to access the underlying transport
+    std::shared_ptr<TransportProtocol> getTransport() const { return transport_; }
+
+public: // Made verifyCertificateHostname public for the callback
+    bool verifyCertificateHostname(X509* cert);
 
 private:
     struct BatchedMessage {
@@ -206,7 +225,6 @@ private:
     bool setupSessionResumption();
     void updateConnectionState(ConnectionState newState);
     void handleSecurityError(const std::string& operation);
-    bool verifyCertificateHostname(const std::string& hostname);
     Result<void> handleSessionResumption();
     void cleanupSecureContext();
     Result<void> initializeBatching();
@@ -235,6 +253,7 @@ private:
     std::function<void(TransportError, const std::string&)> error_callback_;
     bool is_handshake_complete_;
     std::string negotiated_protocol_;
+    bool is_server_mode_{false}; // Added: To know if operating in server mode
 
     // Custom BIO for OpenSSL integration
     struct BIOData;

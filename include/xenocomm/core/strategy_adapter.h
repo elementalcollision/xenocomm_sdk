@@ -1,7 +1,8 @@
 #pragma once
 
 #include "xenocomm/core/feedback_loop.h"
-#include "xenocomm/utils/result.h"
+#include "xenocomm/utils/result.hpp"
+#include "xenocomm/core/error_correction_mode.h"
 #include <chrono>
 #include <map>
 #include <memory>
@@ -18,7 +19,7 @@ struct StrategyConfig {
     uint32_t windowSize{16};
     uint32_t maxRetries{3};
     std::chrono::milliseconds timeout{1000};
-    ErrorCorrectionMode errorCorrection{ErrorCorrectionMode::CHECKSUM_ONLY};
+    core::ErrorCorrectionMode errorCorrection{core::ErrorCorrectionMode::CHECKSUM_ONLY};
     bool enableInterleaving{false};
     uint16_t interleavingDepth{8};
 };

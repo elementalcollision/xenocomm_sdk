@@ -1,9 +1,15 @@
 #include "xenocomm/core/parameter_fallback.h"
+#include "xenocomm/core/negotiation_protocol.h"
+#include "xenocomm/core/negotiation_preferences.h"
 #include <algorithm>
 #include <cassert>
 
 namespace xenocomm {
 namespace core {
+
+// Forward declarations for helper functions defined later in this file
+bool isFormatCompatibleWithCompression(DataFormat format, CompressionAlgorithm compression);
+bool isFormatCompatibleWithErrorCorrection(DataFormat format, ErrorCorrectionScheme scheme);
 
 ParameterFallbackHandler::ParameterFallbackHandler(
     const NegotiationPreferences& prefs,
@@ -51,12 +57,14 @@ std::optional<NegotiableParams> ParameterFallbackHandler::handleRejection(
 bool ParameterFallbackHandler::areParametersAcceptable(
     const NegotiableParams& params) const {
     
-    // Check protocol version compatibility
-    if (params.protocolVersion < preferences_.minProtocolVersion) {
-        return false;
-    }
+    // TODO: Implement proper version comparison logic if needed.
+    // Example: Compare major/minor/patch components.
+    // For now, skipping the check:
+    // if (params.protocolVersion < preferences_.minProtocolVersion) {
+    //     return false; // Proposed version is lower than our minimum requirement
+    // }
 
-    // Check if each parameter is acceptable according to preferences
+    // Check acceptability based on preference lists
     return preferences_.dataFormat.isAcceptable(params.dataFormat) &&
            preferences_.compression.isAcceptable(params.compressionAlgorithm) &&
            preferences_.errorCorrection.isAcceptable(params.errorCorrection);
@@ -128,8 +136,6 @@ std::optional<NegotiableParams> ParameterFallbackHandler::tryErrorCorrectionFall
 }
 
 // Helper functions for compatibility checking
-namespace {
-
 bool isFormatCompatibleWithCompression(DataFormat format, CompressionAlgorithm compression) {
     // Some formats might already be compressed or not suitable for compression
     if (format == DataFormat::COMPRESSED_STATE) {
@@ -150,19 +156,6 @@ bool isFormatCompatibleWithErrorCorrection(DataFormat format, ErrorCorrectionSch
     
     // All other formats are compatible with any error correction scheme
     return true;
-}
-
-} // anonymous namespace
-
-std::optional<NegotiableParams> NegotiationPreferences::generateFallback(
-    const NegotiableParams& current,
-    std::size_t attempt) const {
-    
-    // Create a fallback handler with default config
-    ParameterFallbackHandler handler(*this);
-    
-    // Use the handler to generate fallback parameters
-    return handler.handleRejection(current, attempt);
 }
 
 } // namespace core

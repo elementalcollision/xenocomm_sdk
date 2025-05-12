@@ -7,9 +7,16 @@
 #include <map>
 #include <cstdint> // For uint16_t
 #include <optional>
+#include <memory>
+#include <functional> // For std::hash
+#include <cstddef>    // For std::size_t
+#include <utility>    // For std::move
 
 namespace xenocomm {
 namespace core {
+
+// Forward declare Version if needed, or include version.h if specialization needs definition
+// Assuming version.h is already included above this point or included by capability_signaler.h users
 
 /**
  * @brief Represents the version of a capability.
@@ -18,6 +25,10 @@ struct CapabilityVersion {
     uint16_t major = 0;
     uint16_t minor = 0;
     uint16_t patch = 0;
+
+    CapabilityVersion() = default;
+    CapabilityVersion(uint16_t maj, uint16_t min, uint16_t pat)
+        : major(maj), minor(min), patch(pat) {}
 
     // Basic comparison operator for simplicity
     bool operator==(const CapabilityVersion& other) const {
@@ -218,20 +229,25 @@ protected:
     CapabilitySignaler() = default;
 };
 
+/**
+ * @brief Factory function to create an instance of the default in-memory capability signaler.
+ * 
+ * @return A unique pointer to a CapabilitySignaler instance.
+ */
+std::unique_ptr<CapabilitySignaler> createInMemoryCapabilitySignaler();
+
 } // namespace core
 } // namespace xenocomm
 
+// Specialization of std::hash for xenocomm::core::Capability
+// Needs to be defined before Capability is used as a key in unordered containers (like unordered_set in tests)
 namespace std {
     template <>
     struct hash<xenocomm::core::Capability> {
         size_t operator()(const xenocomm::core::Capability& cap) const noexcept {
-            // Combine hashes of name and version. Parameters ignored for hashing simplicity.
             size_t h1 = std::hash<std::string>{}(cap.name);
-            // Simple hash combination for version - could be improved
-            size_t h_version = std::hash<uint16_t>{}(cap.version.major) ^ 
-                               (std::hash<uint16_t>{}(cap.version.minor) << 1) ^
-                               (std::hash<uint16_t>{}(cap.version.patch) << 2);
-            return h1 ^ (h_version << 1); // Combine name and version hashes
+            size_t h_version = std::hash<xenocomm::core::Version>{}(cap.version);
+            return h1 ^ (h_version << 1);
         }
     };
 } // namespace std

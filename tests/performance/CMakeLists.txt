@@ -9,7 +9,7 @@ if(BUILD_BENCHMARKS)
         target_link_libraries(${BENCH_NAME} PRIVATE
             benchmark::benchmark
             benchmark::benchmark_main
-            xenocomm
+            xenocomm_core
         )
         target_include_directories(${BENCH_NAME} PRIVATE
             ${PROJECT_SOURCE_DIR}/include

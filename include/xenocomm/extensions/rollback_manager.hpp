@@ -190,11 +190,11 @@ private:
     };
     
     std::shared_ptr<BTreeNode> btreeRoot_;
-    NodeCache nodeCache_;
+    mutable NodeCache nodeCache_;
     
     // Enhanced B-tree methods
     void insertIntoBTree(const std::string& key, const std::string& value);
-    std::string searchBTree(const std::string& key) const;
+    std::string searchBTree(const std::string& key);
     void optimizeBTree();
     void splitChild(std::shared_ptr<BTreeNode> parent, size_t index);
     void insertNonFull(std::shared_ptr<BTreeNode> node, const std::string& key, const std::string& value);
@@ -260,6 +260,9 @@ private:
         const nlohmann::json& baseState,
         const nlohmann::json& incrementalState
     ) const;
+
+    // Add declaration for collectEntries
+    void collectEntries(std::shared_ptr<BTreeNode> node, std::vector<std::pair<std::string, std::string>>& entries);
 };
 
 } // namespace extensions

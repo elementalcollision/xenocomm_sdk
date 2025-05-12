@@ -47,6 +47,7 @@ struct RecordBatchingConfig {
     size_t minMessageSize{1024};           // Minimum message size to trigger batching
     size_t maxMessagesPerBatch{32};        // Maximum number of messages per batch
     std::chrono::milliseconds maxDelay{5}; // Maximum delay before sending a partial batch
+    std::chrono::milliseconds intervalMs{5}; // Added: Interval for batch processing
 };
 
 /**
@@ -58,6 +59,7 @@ struct AdaptiveRecordConfig {
     size_t maxSize{16384};                 // Maximum record size
     size_t initialSize{4096};              // Initial record size
     std::chrono::milliseconds rttWindow{1000}; // Window for RTT measurements
+    std::chrono::milliseconds rttProbeIntervalMs{100}; // Added: Interval for RTT probing
     float growthFactor{1.5f};              // Factor to increase size by
     float shrinkFactor{0.75f};             // Factor to decrease size by
 };
@@ -94,6 +96,20 @@ struct SecurityMonitorConfig {
     bool maskSensitiveData{true};          // Mask sensitive data in logs
     size_t maxLogSize{10 * 1024 * 1024};   // Maximum log file size
     size_t maxLogFiles{5};                 // Maximum number of log files to keep
+
+    bool operator==(const SecurityMonitorConfig& other) const {
+        return enablePerformanceMetrics == other.enablePerformanceMetrics &&
+               enableSecurityEvents == other.enableSecurityEvents &&
+               enableAuditLog == other.enableAuditLog &&
+               logLevel == other.logLevel &&
+               maskSensitiveData == other.maskSensitiveData &&
+               maxLogSize == other.maxLogSize &&
+               maxLogFiles == other.maxLogFiles;
+    }
+
+    bool operator!=(const SecurityMonitorConfig& other) const {
+        return !(*this == other);
+    }
 };
 
 /**

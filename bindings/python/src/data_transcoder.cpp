@@ -3,6 +3,7 @@
 #include <pybind11/numpy.h>
 #include "xenocomm/core/data_transcoder.h"
 #include "type_converters.hpp"
+#include "xenocomm/core/base64_transcoder.h"
 
 namespace py = pybind11;
 using namespace xenocomm::core;
@@ -63,11 +64,6 @@ void init_data_transcoder(py::module_& m) {
 
     // Bind DataTranscoder class with improved memory management and buffer protocol support
     py::class_<DataTranscoder, std::shared_ptr<DataTranscoder>>(m, "DataTranscoder")
-        // Constructor with shared_ptr for proper memory management
-        .def(py::init([]() {
-            return std::make_shared<DataTranscoder>();
-        }))
-
         // Encode methods with buffer protocol support
         .def("encode_float32", [](DataTranscoder& self, py::buffer data) {
             py::buffer_info buf = data.request();
@@ -174,7 +170,7 @@ void init_data_transcoder(py::module_& m) {
         // Utility methods with improved type safety
         .def("is_valid_format", [](DataTranscoder& self, py::buffer data, DataFormat format) {
             py::buffer_info buf = data.request();
-            return self.isValidFormat(buf.ptr, buf.size_in_bytes(), format);
+            return self.isValidFormat(buf.ptr, buf.size * buf.itemsize, format);
         }, "Check if data format is valid")
         
         .def("get_metadata", &DataTranscoder::getMetadata,
@@ -183,4 +179,19 @@ void init_data_transcoder(py::module_& m) {
 
     // Register shared_ptr conversion for DataTranscoder
     register_shared_ptr_conversion<DataTranscoder>(m);
+
+    py::class_<Base64Transcoder, DataTranscoder, std::shared_ptr<Base64Transcoder>>(m, "Base64Transcoder")
+        .def(py::init<>())
+        .def("encode", [](Base64Transcoder& self, py::bytes input) {
+            std::string s = input;
+            auto out = self.encode(s.data(), s.size(), DataFormat::BINARY_CUSTOM);
+            return py::bytes(reinterpret_cast<const char*>(out.data()), out.size());
+        })
+        .def("decode", [](Base64Transcoder& self, py::bytes input) {
+            std::string s = input;
+            std::vector<uint8_t> buf(s.begin(), s.end());
+            auto out = self.decode(buf, DataFormat::BINARY_CUSTOM);
+            return py::bytes(reinterpret_cast<const char*>(out.data()), out.size());
+        })
+        .def("name", &Base64Transcoder::name);
 } 

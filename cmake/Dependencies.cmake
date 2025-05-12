@@ -51,16 +51,14 @@ endif()
 
 # pybind11 (for Python bindings)
 if(BUILD_PYTHON_BINDINGS)
-    if(USE_SYSTEM_PYBIND11)
-        find_package(pybind11 REQUIRED)
-    else()
-        FetchContent_Declare(
-            pybind11
-            GIT_REPOSITORY https://github.com/pybind/pybind11.git
-            GIT_TAG v2.11.1
-        )
-        FetchContent_MakeAvailable(pybind11)
-    endif()
+    # Use FetchContent to ensure pybind11 is built against the correct Python
+    message(STATUS "Fetching pybind11 from repository.")
+    FetchContent_Declare(
+        pybind11
+        GIT_REPOSITORY https://github.com/pybind/pybind11.git
+        GIT_TAG v2.11.1
+    )
+    FetchContent_MakeAvailable(pybind11)
 endif()
 
 # Google Benchmark

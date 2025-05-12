@@ -1,6 +1,7 @@
 #pragma once
 
 #include "xenocomm/core/transmission_manager.h"
+#include "xenocomm/core/error_correction_mode.h"
 #include <vector>
 #include <cstdint>
 #include <optional>
@@ -9,6 +10,14 @@
 
 namespace xenocomm {
 namespace core {
+
+// Move Config struct outside the class
+template <typename T = void>
+struct ReedSolomonConfig {
+    uint8_t data_shards = 223;     ///< Number of data shards (k)
+    uint8_t parity_shards = 32;    ///< Number of parity shards (n-k)
+    bool enable_interleaving = true; ///< Whether to use interleaving for burst error protection
+};
 
 /**
  * @brief Interface for error correction algorithms.
@@ -96,21 +105,8 @@ private:
  */
 class ReedSolomonCorrection : public IErrorCorrection {
 public:
-    /**
-     * @brief Configuration for Reed-Solomon error correction.
-     */
-    struct Config {
-        uint8_t data_shards = 223;     ///< Number of data shards (k)
-        uint8_t parity_shards = 32;    ///< Number of parity shards (n-k)
-        bool enable_interleaving = true; ///< Whether to use interleaving for burst error protection
-    };
-
-    /**
-     * @brief Constructs a Reed-Solomon error correction instance.
-     * 
-     * @param config Configuration parameters for the RS algorithm
-     */
-    explicit ReedSolomonCorrection(const Config& config = Config{});
+    using Config = ReedSolomonConfig<>;
+    explicit ReedSolomonCorrection(const Config& config);
     ~ReedSolomonCorrection() override = default;
 
     std::vector<uint8_t> encode(const std::vector<uint8_t>& data) override;
@@ -119,18 +115,7 @@ public:
     int maxCorrectableErrors() const override;
     std::string name() const override { return "Reed-Solomon"; }
 
-    /**
-     * @brief Reconfigures the Reed-Solomon parameters.
-     * 
-     * @param config New configuration to use
-     */
     void configure(const Config& config);
-
-    /**
-     * @brief Gets the current configuration.
-     * 
-     * @return const Config& The current configuration
-     */
     const Config& get_config() const { return config_; }
 
 private:
@@ -149,7 +134,7 @@ public:
      * @param mode The error correction mode to use
      * @return std::unique_ptr<IErrorCorrection> The created error correction instance
      */
-    static std::unique_ptr<IErrorCorrection> create(TransmissionManager::ErrorCorrectionMode mode);
+    static std::unique_ptr<IErrorCorrection> create(ErrorCorrectionMode mode);
 };
 
 } // namespace core

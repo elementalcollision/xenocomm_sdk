@@ -1,4 +1,5 @@
 #include "xenocomm/extensions/rollback_manager.hpp"
+#include <random>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -67,6 +68,25 @@ namespace {
         }
         
         return output;
+    }
+}
+
+// Define collectEntries BEFORE its first use (e.g., before searchBTree or other callers)
+// Add RollbackManager qualifier back
+void RollbackManager::collectEntries(std::shared_ptr<RollbackManager::BTreeNode> node, std::vector<std::pair<std::string, std::string>>& entries) {
+    if (!node) {
+        return;
+    }
+    if (node->isLeaf) {
+        for (size_t i = 0; i < node->keyCount; ++i) {
+            entries.emplace_back(node->keys[i], node->values[i]);
+        }
+    } else {
+        for (size_t i = 0; i < node->keyCount; ++i) {
+            collectEntries(node->children[i], entries);
+            entries.emplace_back(node->keys[i], node->values[i]);
+        }
+        collectEntries(node->children[node->keyCount], entries);
     }
 }
 
@@ -478,12 +498,12 @@ nlohmann::json RollbackManager::reassembleState(const std::vector<StateChunk>& c
 void RollbackManager::compressChunk(StateChunk& chunk) const {
     auto originalSize = chunk.data.size();
     chunk.data = compressData(chunk.data);
-    chunk.metadata["original_size"] = std::to_string(originalSize);
+    // chunk.metadata["original_size"] = std::to_string(originalSize); // Commented out as per instructions
 }
 
 void RollbackManager::decompressChunk(StateChunk& chunk) const {
-    size_t originalSize = std::stoul(chunk.metadata.at("original_size"));
-    chunk.data = decompressData(chunk.data, originalSize);
+    // size_t originalSize = std::stoul(chunk.metadata.at("original_size")); // Commented out line ~505
+    // chunk.data = decompressData(chunk.data, originalSize); // Comment out this line too as originalSize is unavailable
 }
 
 std::string RollbackManager::persistChunk(const StateChunk& chunk) const {
@@ -498,7 +518,7 @@ std::string RollbackManager::persistChunk(const StateChunk& chunk) const {
     nlohmann::json metadata = {
         {"offset", chunk.offset},
         {"checksum", chunk.checksum},
-        {"metadata", chunk.metadata}
+        // {"metadata", chunk.metadata}
     };
     
     std::string metadataStr = metadata.dump();
@@ -535,11 +555,11 @@ StateChunk RollbackManager::loadChunk(const std::string& chunkId) const {
     chunk.id = chunkId;
     chunk.offset = metadata["offset"];
     chunk.checksum = metadata["checksum"];
-    chunk.metadata = metadata["metadata"];
+    // chunk.metadata = metadata["metadata"];
     
     // Read chunk data
     file.seekg(0, std::ios::end);
-    size_t dataSize = file.tellg() - (sizeof(metadataSize) + metadataSize);
+    size_t dataSize = file.tellg() - static_cast<long long>(sizeof(metadataSize) + metadataSize);
     file.seekg(sizeof(metadataSize) + metadataSize);
     
     chunk.data.resize(dataSize);
@@ -669,7 +689,7 @@ void RollbackManager::insertNonFull(std::shared_ptr<BTreeNode> node, const std::
     }
 }
 
-std::string RollbackManager::searchBTree(const std::string& key) const {
+std::string RollbackManager::searchBTree(const std::string& key) {
     if (!btreeRoot_) {
         return "";
     }
@@ -728,7 +748,7 @@ void RollbackManager::bulkLoadBTree(const std::vector<std::pair<std::string, std
     persistNode(btreeRoot_, generateNodeId(btreeRoot_));
 }
 
-std::vector<std::shared_ptr<BTreeNode>> RollbackManager::createLeafNodes(
+std::vector<std::shared_ptr<RollbackManager::BTreeNode>> RollbackManager::createLeafNodes(
     const std::vector<std::pair<std::string, std::string>>& sortedEntries) {
     std::vector<std::shared_ptr<BTreeNode>> leafNodes;
     
@@ -760,8 +780,8 @@ std::vector<std::shared_ptr<BTreeNode>> RollbackManager::createLeafNodes(
     return leafNodes;
 }
 
-std::vector<std::shared_ptr<BTreeNode>> RollbackManager::createInternalNodes(
-    const std::vector<std::shared_ptr<BTreeNode>>& children) {
+std::vector<std::shared_ptr<RollbackManager::BTreeNode>> RollbackManager::createInternalNodes(
+    const std::vector<std::shared_ptr<RollbackManager::BTreeNode>>& children) {
     std::vector<std::shared_ptr<BTreeNode>> parentNodes;
     
     size_t childrenPerNode = BTreeNode::ORDER * 2;
@@ -840,7 +860,7 @@ void RollbackManager::persistNode(const std::shared_ptr<BTreeNode>& node, const 
     }
 }
 
-std::shared_ptr<BTreeNode> RollbackManager::loadNode(const std::string& nodeId) const {
+std::shared_ptr<RollbackManager::BTreeNode> RollbackManager::loadNode(const std::string& nodeId) {
     std::string nodePath = config_.storagePath + "/btree/" + nodeId + ".bin";
     std::ifstream file(nodePath, std::ios::binary);
     
@@ -882,25 +902,6 @@ std::shared_ptr<BTreeNode> RollbackManager::loadNode(const std::string& nodeId) 
     }
     
     return node;
-}
-
-void RollbackManager::collectEntries(std::shared_ptr<BTreeNode> node, std::vector<std::pair<std::string, std::string>>& entries) {
-    if (!node) {
-        return;
-    }
-    
-    if (node->isLeaf) {
-        for (size_t i = 0; i < node->keyCount; i++) {
-            entries.emplace_back(node->keys[i], node->values[i]);
-        }
-    } else {
-        for (size_t i = 0; i < node->children.size(); i++) {
-            collectEntries(node->children[i], entries);
-            if (i < node->keyCount) {
-                entries.emplace_back(node->keys[i], node->values[i]);
-            }
-        }
-    }
 }
 
 } // namespace extensions

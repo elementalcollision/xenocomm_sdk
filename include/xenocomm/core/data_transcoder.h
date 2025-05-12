@@ -40,13 +40,20 @@ struct TranscodingMetadata {
     uint32_t version;                     ///< Version of the encoding format
     size_t element_count;                 ///< Number of elements in the data
     size_t element_size;                  ///< Size of each element in bytes
+    size_t uncompressed_data_size;        ///< Size of the original, uncompressed data
+    size_t encoded_data_size;             ///< Size of the final encoded/compressed data
+    float compression_ratio_value;        ///< Achieved compression ratio (encoded_size / uncompressed_size)
+    std::string custom_metadata_json;     ///< Additional metadata as a JSON string (e.g., for compression specifics)
     
     TranscodingMetadata() 
         : format(DataFormat::VECTOR_FLOAT32)
         , scale_factor(1.0f)
         , version(1)
         , element_count(0)
-        , element_size(0) {}
+        , element_size(0)
+        , uncompressed_data_size(0)
+        , encoded_data_size(0)
+        , compression_ratio_value(0.0f) {}
 };
 
 /**

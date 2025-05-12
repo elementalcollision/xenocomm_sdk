@@ -98,6 +98,35 @@ cd bindings/python
 python -m pytest tests/
 ```
 
+### Shared Test Fixtures
+
+The test suite provides shared pytest fixtures in `tests/conftest.py` to simplify and standardize test setup across modules:
+
+- **mock_connection_manager**: Provides a mock `ConnectionManager` instance using `unittest.mock.MagicMock`. Use this fixture in your tests to stub out connection logic or simulate connection states.
+
+  Example usage:
+  ```python
+  def test_with_mock_manager(mock_connection_manager):
+      assert mock_connection_manager.is_connected() is True
+      mock_connection_manager.establish.return_value = "mock_conn"
+      assert mock_connection_manager.establish("test") == "mock_conn"
+  ```
+
+- **temp_output_dir**: Provides a temporary directory for test output, automatically cleaned up after the test completes. Useful for tests that need to write/read files without polluting the workspace.
+
+  Example usage:
+  ```python
+  def test_with_temp_dir(temp_output_dir):
+      test_file = os.path.join(temp_output_dir, "testfile.txt")
+      with open(test_file, "w") as f:
+          f.write("hello world")
+      with open(test_file, "r") as f:
+          content = f.read()
+      assert content == "hello world"
+  ```
+
+To use these fixtures, simply add them as arguments to your test functions. Pytest will automatically provide the fixture when running the tests.
+
 ## License
 
 This project is licensed under the same terms as the main XenoComm SDK. 
