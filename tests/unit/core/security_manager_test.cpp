@@ -23,7 +23,7 @@ protected:
         // Create default configuration
         config_.certificatePath = certPath_.string();
         config_.privateKeyPath = keyPath_.string();
-        config_.caPath = caPath_.string();
+        config_.trustedCAsPath = caPath_.string();
         config_.protocol = EncryptionProtocol::TLS_1_3;
         config_.verifyPeer = true;
         config_.allowSelfSigned = true;
@@ -70,7 +70,7 @@ TEST_F(SecurityManagerTest, GenerateSelfSignedCertificate) {
     SecurityManager manager(config_);
     
     auto result = manager.generateSelfSignedCert("test.xenocomm.local");
-    ASSERT_TRUE(result.isSuccess()) << result.error();
+    ASSERT_TRUE(result.has_value()) << result.error();
     
     // Verify files were created
     EXPECT_TRUE(std::filesystem::exists(certPath_));
@@ -82,14 +82,14 @@ TEST_F(SecurityManagerTest, CreateSecureContext) {
     
     // Generate test certificate
     auto result = manager.generateSelfSignedCert("test.xenocomm.local");
-    ASSERT_TRUE(result.isSuccess()) << result.error();
+    ASSERT_TRUE(result.has_value()) << result.error();
     
     // Create server and client contexts
     auto serverContext = manager.createContext(true);
-    ASSERT_TRUE(serverContext.isSuccess()) << serverContext.error();
+    ASSERT_TRUE(serverContext.has_value()) << serverContext.error();
     
     auto clientContext = manager.createContext(false);
-    ASSERT_TRUE(clientContext.isSuccess()) << clientContext.error();
+    ASSERT_TRUE(clientContext.has_value()) << clientContext.error();
 }
 
 TEST_F(SecurityManagerTest, BasicEncryptionDecryption) {
@@ -97,15 +97,15 @@ TEST_F(SecurityManagerTest, BasicEncryptionDecryption) {
     
     // Generate test certificate
     auto result = manager.generateSelfSignedCert("test.xenocomm.local");
-    ASSERT_TRUE(result.isSuccess()) << result.error();
+    ASSERT_TRUE(result.has_value()) << result.error();
     
     // Create server and client contexts
     auto serverContextResult = manager.createContext(true);
-    ASSERT_TRUE(serverContextResult.isSuccess()) << serverContextResult.error();
+    ASSERT_TRUE(serverContextResult.has_value()) << serverContextResult.error();
     auto serverContext = serverContextResult.value();
     
     auto clientContextResult = manager.createContext(false);
-    ASSERT_TRUE(clientContextResult.isSuccess()) << clientContextResult.error();
+    ASSERT_TRUE(clientContextResult.has_value()) << clientContextResult.error();
     auto clientContext = clientContextResult.value();
     
     // Create test message
@@ -113,11 +113,11 @@ TEST_F(SecurityManagerTest, BasicEncryptionDecryption) {
     
     // Encrypt with server context
     auto encryptedResult = serverContext->encrypt(originalMessage);
-    ASSERT_TRUE(encryptedResult.isSuccess()) << encryptedResult.error();
+    ASSERT_TRUE(encryptedResult.has_value()) << encryptedResult.error();
     
     // Decrypt with client context
     auto decryptedResult = clientContext->decrypt(encryptedResult.value());
-    ASSERT_TRUE(decryptedResult.isSuccess()) << decryptedResult.error();
+    ASSERT_TRUE(decryptedResult.has_value()) << decryptedResult.error();
     
     // Verify message
     verifyMessage(originalMessage, decryptedResult.value());
@@ -132,7 +132,7 @@ TEST_F(SecurityManagerTest, UpdateConfiguration) {
     newConfig.verifyPeer = false;
     
     auto result = manager.updateConfig(newConfig);
-    ASSERT_TRUE(result.isSuccess()) << result.error();
+    ASSERT_TRUE(result.has_value()) << result.error();
     
     // Verify configuration was updated
     const auto& currentConfig = manager.getConfig();
@@ -145,7 +145,7 @@ TEST_F(SecurityManagerTest, ValidatePeerCertificate) {
     
     // Generate test certificate
     auto result = manager.generateSelfSignedCert("test.xenocomm.local");
-    ASSERT_TRUE(result.isSuccess()) << result.error();
+    ASSERT_TRUE(result.has_value()) << result.error();
     
     // Read certificate file
     std::ifstream certFile(certPath_, std::ios::binary);
@@ -157,7 +157,7 @@ TEST_F(SecurityManagerTest, ValidatePeerCertificate) {
     
     // Validate certificate
     result = manager.validatePeerCertificate(certData);
-    ASSERT_TRUE(result.isSuccess()) << result.error();
+    ASSERT_TRUE(result.has_value()) << result.error();
 }
 
 TEST_F(SecurityManagerTest, HandshakeCompletion) {
@@ -165,23 +165,23 @@ TEST_F(SecurityManagerTest, HandshakeCompletion) {
     
     // Generate test certificate
     auto result = manager.generateSelfSignedCert("test.xenocomm.local");
-    ASSERT_TRUE(result.isSuccess()) << result.error();
+    ASSERT_TRUE(result.has_value()) << result.error();
     
     // Create server and client contexts
     auto serverContextResult = manager.createContext(true);
-    ASSERT_TRUE(serverContextResult.isSuccess()) << serverContextResult.error();
+    ASSERT_TRUE(serverContextResult.has_value()) << serverContextResult.error();
     auto serverContext = serverContextResult.value();
     
     auto clientContextResult = manager.createContext(false);
-    ASSERT_TRUE(clientContextResult.isSuccess()) << clientContextResult.error();
+    ASSERT_TRUE(clientContextResult.has_value()) << clientContextResult.error();
     auto clientContext = clientContextResult.value();
     
     // Perform handshake
     auto serverHandshake = serverContext->handshake();
-    ASSERT_TRUE(serverHandshake.isSuccess()) << serverHandshake.error();
+    ASSERT_TRUE(serverHandshake.has_value()) << serverHandshake.error();
     
     auto clientHandshake = clientContext->handshake();
-    ASSERT_TRUE(clientHandshake.isSuccess()) << clientHandshake.error();
+    ASSERT_TRUE(clientHandshake.has_value()) << clientHandshake.error();
     
     // Verify handshake completion
     EXPECT_TRUE(serverContext->isHandshakeComplete());
@@ -193,23 +193,23 @@ TEST_F(SecurityManagerTest, CipherSuiteNegotiation) {
     
     // Generate test certificate
     auto result = manager.generateSelfSignedCert("test.xenocomm.local");
-    ASSERT_TRUE(result.isSuccess()) << result.error();
+    ASSERT_TRUE(result.has_value()) << result.error();
     
     // Create server and client contexts
     auto serverContextResult = manager.createContext(true);
-    ASSERT_TRUE(serverContextResult.isSuccess()) << serverContextResult.error();
+    ASSERT_TRUE(serverContextResult.has_value()) << serverContextResult.error();
     auto serverContext = serverContextResult.value();
     
     auto clientContextResult = manager.createContext(false);
-    ASSERT_TRUE(clientContextResult.isSuccess()) << clientContextResult.error();
+    ASSERT_TRUE(clientContextResult.has_value()) << clientContextResult.error();
     auto clientContext = clientContextResult.value();
     
     // Perform handshake
     auto serverHandshake = serverContext->handshake();
-    ASSERT_TRUE(serverHandshake.isSuccess()) << serverHandshake.error();
+    ASSERT_TRUE(serverHandshake.has_value()) << serverHandshake.error();
     
     auto clientHandshake = clientContext->handshake();
-    ASSERT_TRUE(clientHandshake.isSuccess()) << clientHandshake.error();
+    ASSERT_TRUE(clientHandshake.has_value()) << clientHandshake.error();
     
     // Verify negotiated cipher suite
     auto serverCipher = serverContext->getNegotiatedCipherSuite();

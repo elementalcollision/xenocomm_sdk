@@ -31,22 +31,24 @@ TimeoutNegotiationProtocol::~TimeoutNegotiationProtocol() noexcept {
     }
 }
 
-SessionId TimeoutNegotiationProtocol::initiateSession(const std::string& targetAgentId,
-                                                     const NegotiableParams& proposedParams) {
+NegotiationProtocol::SessionId TimeoutNegotiationProtocol::initiateSession(
+    const std::string& /* targetAgentId */, // Using /* */ to explicitly mark as unused
+    const NegotiableParams& proposedParams) {
+    
     SessionId sessionId = nextSessionId_++;
     
     {
         std::lock_guard<std::mutex> lock(sessionsMutex_);
         auto now = std::chrono::steady_clock::now();
         
-        SessionData sessionData{
-            .startTime = now,
-            .lastActivityTime = now,
-            .state = NegotiationState::INITIATING,
-            .proposedParams = proposedParams
-        };
-        
-        sessions_.emplace(sessionId, std::move(sessionData));
+        // Create a new session using operator[] instead of emplace
+        SessionData& sessionData = sessions_[sessionId];
+        sessionData.startTime = now;
+        sessionData.lastActivityTime = now;
+        sessionData.state = NegotiationState::INITIATING;
+        sessionData.proposedParams = proposedParams;
+        sessionData.isActive = true;
+        sessionData.retryCount = 0;
     }
     
     if (!attemptWithRetry(sessionId, [&]() {
@@ -181,8 +183,10 @@ bool TimeoutNegotiationProtocol::acceptCounterProposal(const SessionId sessionId
     return success;
 }
 
-bool TimeoutNegotiationProtocol::rejectCounterProposal(const SessionId sessionId,
-                                                      const std::optional<std::string>& reason) {
+bool TimeoutNegotiationProtocol::rejectCounterProposal(
+    const SessionId sessionId,
+    const std::optional<std::string>& /* reason */) {
+    
     std::lock_guard<std::mutex> lock(sessionsMutex_);
     
     auto it = sessions_.find(sessionId);

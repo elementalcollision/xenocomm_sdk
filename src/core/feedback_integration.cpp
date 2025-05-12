@@ -1,49 +1,36 @@
 #include "xenocomm/core/feedback_integration.h"
-#include "xenocomm/utils/logging.h"
-#include <algorithm>
+#include "xenocomm/core/error_correction_mode.h"
 #include <thread>
+#include <chrono>
+#include <stdexcept>
+#include <string>
+#include <cmath>
+#include <iostream>
 
 namespace xenocomm {
 
+// Simple logging implementation
+#define LOG_INFO(msg) std::cout << "[INFO] " << msg << std::endl
+#define LOG_ERROR(msg) std::cerr << "[ERROR] " << msg << std::endl
+
 namespace {
-    // Helper function to calculate percentage change
     double calculate_change(double current, double previous) {
-        if (previous == 0) return 0.0;
+        if (previous == 0) return 0;
         return (current - previous) / previous;
     }
-
-    // Helper function to adjust config value based on sensitivity
+    
     template<typename T>
     T adjust_value(T current, T min, T max, double factor, double sensitivity) {
-        double adjustment = factor * sensitivity;
-        T new_value = static_cast<T>(current * (1.0 + adjustment));
-        return std::clamp(new_value, min, max);
+        T adjusted = static_cast<T>(current * (1 + factor * sensitivity));
+        return std::max(min, std::min(max, adjusted));
     }
 }
 
-FeedbackIntegration::FeedbackIntegration(
-    FeedbackLoop& feedback_loop,
-    core::TransmissionManager& transmission_mgr,
-    const Config& config)
-    : feedback_loop_(feedback_loop)
-    , transmission_mgr_(transmission_mgr)
-    , config_(config)
-    , last_update_(std::chrono::steady_clock::now()) {
-    
-    // Set up initial recommendation with current TransmissionManager config
-    const auto& tm_config = transmission_mgr.get_config();
-    latest_recommendation_ = {
-        tm_config.error_correction_mode,
-        tm_config.fragment_config,
-        tm_config.retransmission_config,
-        tm_config.flow_control,
-        "Initial configuration"
-    };
-}
+// Constructor is already defined in the header file
 
 Result<void> FeedbackIntegration::start() {
     if (running_) {
-        return Result<void>::Error("FeedbackIntegration already running");
+        return Result<void>("FeedbackIntegration already running");
     }
 
     try {
@@ -67,10 +54,10 @@ Result<void> FeedbackIntegration::start() {
             });
         }
 
-        return Result<void>::Success();
+        return Result<void>();
     } catch (const std::exception& e) {
-        return Result<void>::Error("Failed to start FeedbackIntegration: " + 
-                                 std::string(e.what()));
+        return Result<void>("Failed to start FeedbackIntegration: " + 
+                          std::string(e.what()));
     }
 }
 
@@ -90,7 +77,7 @@ void FeedbackIntegration::set_config(const Config& config) {
 Result<FeedbackIntegration::StrategyRecommendation> 
 FeedbackIntegration::get_latest_recommendation() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return Result<StrategyRecommendation>::Success(latest_recommendation_);
+    return Result<StrategyRecommendation>(latest_recommendation_);
 }
 
 void FeedbackIntegration::set_strategy_callback(
@@ -102,9 +89,9 @@ void FeedbackIntegration::set_strategy_callback(
 Result<void> FeedbackIntegration::update_strategy() {
     try {
         analyze_and_update_strategy();
-        return Result<void>::Success();
+        return Result<void>();
     } catch (const std::exception& e) {
-        return Result<void>::Error("Failed to update strategy: " + std::string(e.what()));
+        return Result<void>("Failed to update strategy: " + std::string(e.what()));
     }
 }
 
@@ -142,7 +129,7 @@ void FeedbackIntegration::analyze_and_update_strategy() {
     try {
         // Get detailed metrics from FeedbackLoop
         auto metrics_result = feedback_loop_.getDetailedMetrics();
-        if (!metrics_result.isSuccess()) {
+        if (metrics_result.has_error()) {
             LOG_ERROR("Failed to get detailed metrics: " + metrics_result.error());
             return;
         }
@@ -202,11 +189,11 @@ FeedbackIntegration::generate_recommendation(const DetailedMetrics& metrics) con
     double error_rate = 1.0 - metrics.basic.successRate;
     if (error_rate > config_.error_rate_threshold) {
         // Increase error correction if error rate is high
-        if (recommendation.error_mode == core::TransmissionManager::ErrorCorrectionMode::NONE) {
-            recommendation.error_mode = core::TransmissionManager::ErrorCorrectionMode::CHECKSUM_ONLY;
+        if (recommendation.error_mode == core::ErrorCorrectionMode::NONE) {
+            recommendation.error_mode = core::ErrorCorrectionMode::CHECKSUM_ONLY;
             explanation += "Enabled checksum verification due to high error rate. ";
-        } else if (recommendation.error_mode == core::TransmissionManager::ErrorCorrectionMode::CHECKSUM_ONLY) {
-            recommendation.error_mode = core::TransmissionManager::ErrorCorrectionMode::REED_SOLOMON;
+        } else if (recommendation.error_mode == core::ErrorCorrectionMode::CHECKSUM_ONLY) {
+            recommendation.error_mode = core::ErrorCorrectionMode::REED_SOLOMON;
             explanation += "Upgraded to Reed-Solomon error correction due to persistent errors. ";
         }
     }
@@ -270,18 +257,21 @@ FeedbackIntegration::generate_recommendation(const DetailedMetrics& metrics) con
 }
 
 void FeedbackIntegration::apply_recommendation(const StrategyRecommendation& recommendation) {
-    // Create new TransmissionManager config with recommended settings
-    core::TransmissionManager::Config new_config = transmission_mgr_.get_config();
+    // Update TransmissionManager configuration
+    core::TransmissionManager::Config tm_config;
     
-    new_config.error_correction_mode = recommendation.error_mode;
-    new_config.fragment_config = recommendation.fragment_config;
-    new_config.retransmission_config = recommendation.retry_config;
-    new_config.flow_control = recommendation.flow_config;
+    // Copy over configuration values
+    tm_config.error_correction_mode = recommendation.error_mode;
+    tm_config.fragment_config = recommendation.fragment_config;
+    tm_config.retransmission_config = recommendation.retry_config;
+    tm_config.flow_control = recommendation.flow_config;
     
-    // Apply the new configuration
-    transmission_mgr_.set_config(new_config);
+    // Apply to TransmissionManager using set_config which exists in the interface
+    transmission_mgr_.set_config(tm_config);
     
-    // Log the change
+    // Update last update time
+    last_update_ = std::chrono::steady_clock::now();
+    
     LOG_INFO("Applied new transmission strategy: " + recommendation.explanation);
 }
 

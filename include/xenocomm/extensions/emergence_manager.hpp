@@ -1,0 +1,1 @@
+../../../src/extensions/emergence_manager.hpp

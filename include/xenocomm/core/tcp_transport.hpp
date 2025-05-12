@@ -2,6 +2,7 @@
 #define XENOCOMM_CORE_TCP_TRANSPORT_HPP
 
 #include "xenocomm/core/transport_protocol.hpp"
+#include "xenocomm/core/async_worker_pool.hpp"
 #include <string>
 #include <atomic>
 #include <cstdint>
@@ -177,14 +178,24 @@ public:
     bool isConnected() const override;
     ssize_t send(const uint8_t* data, size_t size) override;
     ssize_t receive(uint8_t* buffer, size_t size) override;
+    bool getPeerAddress(std::string& address, uint16_t& port) override;
+    int getSocketFd() const override;
+    bool setNonBlocking(bool nonBlocking) override;
+    bool setReceiveTimeout(const std::chrono::milliseconds& timeout) override;
+    bool setSendTimeout(const std::chrono::milliseconds& timeout) override;
+    bool setKeepAlive(bool enable) override;
+    bool setTcpNoDelay(bool enable) override;
+    bool setReuseAddress(bool enable) override;
+    bool setReceiveBufferSize(size_t size) override;
+    bool setSendBufferSize(size_t size) override;
     std::string getLastError() const override;
     bool setLocalPort(uint16_t port) override;
-    ConnectionState getState() const override;
-    TransportError getLastErrorCode() const override;
+    xenocomm::core::ConnectionState getState() const override;
+    xenocomm::core::TransportError getLastErrorCode() const override;
     std::string getErrorDetails() const override;
     bool reconnect(uint32_t maxAttempts = 3, uint32_t delayMs = 1000) override;
-    void setStateCallback(std::function<void(ConnectionState)> callback) override;
-    void setErrorCallback(std::function<void(TransportError, const std::string&)> callback) override;
+    void setStateCallback(std::function<void(xenocomm::core::ConnectionState)> callback) override;
+    void setErrorCallback(std::function<void(xenocomm::core::TransportError, const std::string&)> callback) override;
     bool checkHealth() override;
 
     // TCP-specific methods
@@ -228,11 +239,6 @@ private:
     bool bindSocket();
 
     /**
-     * @brief Set non-blocking mode for socket
-     */
-    bool setNonBlocking(bool nonBlocking);
-
-    /**
      * @brief Create a new connection to the specified endpoint
      */
     std::shared_ptr<ConnectionInfo> createConnection(const std::string& endpoint);
@@ -249,36 +255,37 @@ private:
 
     /**
      * @brief Set error state with code and message
+     * This needs to be const for use in const methods
      */
-    void setError(TransportError code, const std::string& message);
+    void setError(TransportError code, const std::string& message) const;
 
     /**
-     * @brief Get system error message
+     * @brief Get system error string
      */
     std::string getSystemError() const;
 
     /**
-     * @brief Map system error to TransportError
+     * @brief Map system errno to TransportError
      */
     TransportError mapSystemError() const;
 
     /**
-     * @brief Update connection state and notify callback
+     * @brief Update connection state and notify callbacks
      */
-    void updateState(ConnectionState newState);
+    void updateState(xenocomm::core::ConnectionState newState);
 
     /**
-     * @brief Perform health check operations
+     * @brief Perform health check on current connection
      */
     bool performHealthCheck();
 
     /**
-     * @brief Start health monitoring if enabled
+     * @brief Start health monitoring thread
      */
     void startHealthMonitoring();
 
     /**
-     * @brief Stop health monitoring
+     * @brief Stop health monitoring thread
      */
     void stopHealthMonitoring();
 
@@ -298,12 +305,12 @@ private:
     void updateResponseStats(const std::string& endpoint, std::chrono::milliseconds responseTime);
 
     /**
-     * @brief Close the underlying socket cleanly.
+     * @brief Close the socket
      */
     void closeSocket();
 
     /**
-     * @brief Perform a graceful shutdown of the connection.
+     * @brief Perform graceful shutdown of socket
      */
     bool gracefulShutdown();
 
@@ -319,11 +326,11 @@ private:
     uint16_t localPort_{0};
     mutable std::string lastError_; ///< Made mutable for setError in const methods
     std::string currentEndpoint_;
-    std::atomic<ConnectionState> state_{ConnectionState::DISCONNECTED};
-    mutable std::atomic<TransportError> lastErrorCode_{TransportError::NONE}; ///< Made mutable for setError in const methods
+    std::atomic<xenocomm::core::ConnectionState> state_{xenocomm::core::ConnectionState::DISCONNECTED};
+    mutable std::atomic<xenocomm::core::TransportError> lastErrorCode_{xenocomm::core::TransportError::NONE}; ///< Made mutable for setError in const methods
     mutable std::string lastErrorDetails_; ///< Made mutable for setError in const methods
-    std::function<void(ConnectionState)> stateCallback_;
-    std::function<void(TransportError, const std::string&)> errorCallback_;
+    std::function<void(xenocomm::core::ConnectionState)> stateCallback_;
+    std::function<void(xenocomm::core::TransportError, const std::string&)> errorCallback_;
     mutable std::mutex callbackMutex_;
     std::unique_ptr<std::thread> healthMonitorThread_;
     std::atomic<bool> stopHealthMonitor_{false};

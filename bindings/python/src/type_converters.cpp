@@ -4,37 +4,6 @@
 
 namespace xenocomm {
 
-// Buffer protocol support for raw data buffers
-template<typename T>
-class DataBuffer {
-public:
-    explicit DataBuffer(std::vector<T> data) : data_(std::move(data)) {}
-    
-    T* data() { return data_.data(); }
-    const T* data() const { return data_.data(); }
-    size_t size() const { return data_.size(); }
-    
-private:
-    std::vector<T> data_;
-};
-
-// Register buffer protocol support for a data type
-template<typename T>
-py::class_<DataBuffer<T>> register_buffer(py::module_& m, const char* name) {
-    return py::class_<DataBuffer<T>>(m, name)
-        .def(py::init<std::vector<T>>())
-        .def_buffer([](DataBuffer<T>& buffer) -> py::buffer_info {
-            return py::buffer_info(
-                buffer.data(),                          // Pointer to buffer
-                sizeof(T),                              // Size of one element
-                py::format_descriptor<T>::format(),     // Python struct-style format descriptor
-                1,                                      // Number of dimensions
-                { buffer.size() },                      // Buffer dimensions
-                { sizeof(T) }                           // Strides (in bytes) for each dimension
-            );
-        });
-}
-
 // Initialize type conversion system
 void init_type_converters(py::module_& m) {
     // Register common buffer types

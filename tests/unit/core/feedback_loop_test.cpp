@@ -25,10 +25,10 @@ TEST_CASE("FeedbackLoop basic functionality", "[feedback_loop]") {
     SECTION("Basic outcome reporting") {
         auto result = feedback.addCommunicationResult(
             true, std::chrono::microseconds(100), 1024, 0, 0);
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
 
         auto outcomes = feedback.getRecentOutcomes(1);
-        REQUIRE(outcomes.is_ok());
+        REQUIRE(outcomes.has_value());
         REQUIRE(outcomes.value().size() == 1);
         REQUIRE(outcomes.value()[0].success);
         REQUIRE(outcomes.value()[0].latency == std::chrono::microseconds(100));
@@ -37,14 +37,14 @@ TEST_CASE("FeedbackLoop basic functionality", "[feedback_loop]") {
 
     SECTION("Metric recording and retrieval") {
         auto result = feedback.recordMetric("test_metric", 42.0);
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
 
         auto value = feedback.getMetricValue("test_metric");
-        REQUIRE(value.is_ok());
+        REQUIRE(value.has_value());
         REQUIRE_THAT(value.value(), WithinRel(42.0));
 
         auto nonexistent = feedback.getMetricValue("nonexistent");
-        REQUIRE_FALSE(nonexistent.is_ok());
+        REQUIRE_FALSE(nonexistent.has_value());
     }
 }
 
@@ -63,11 +63,11 @@ TEST_CASE("FeedbackLoop metrics calculation", "[feedback_loop]") {
             i % 2, // Alternating retry counts
             success ? 0 : 1 // Errors on failures
         );
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
     }
 
     auto metrics = feedback.getCurrentMetrics();
-    REQUIRE(metrics.is_ok());
+    REQUIRE(metrics.has_value());
     
     const auto& summary = metrics.value();
     REQUIRE_THAT(summary.successRate, WithinRel(0.7)); // 7/10 success rate
@@ -86,11 +86,11 @@ TEST_CASE("FeedbackLoop data pruning", "[feedback_loop]") {
     for (int i = 0; i < 10; ++i) {
         auto result = feedback.addCommunicationResult(
             true, std::chrono::microseconds(100), 1024);
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
     }
 
     auto outcomes = feedback.getRecentOutcomes(100);
-    REQUIRE(outcomes.is_ok());
+    REQUIRE(outcomes.has_value());
     REQUIRE(outcomes.value().size() == 5); // Should be limited by maxStoredOutcomes
 
     // Wait for window to expire
@@ -100,7 +100,7 @@ TEST_CASE("FeedbackLoop data pruning", "[feedback_loop]") {
     feedback.addCommunicationResult(true, std::chrono::microseconds(100), 1024);
 
     outcomes = feedback.getRecentOutcomes(100);
-    REQUIRE(outcomes.is_ok());
+    REQUIRE(outcomes.has_value());
     REQUIRE(outcomes.value().size() == 1); // Only the newest outcome should remain
 }
 
@@ -130,13 +130,13 @@ TEST_CASE("FeedbackLoop thread safety", "[feedback_loop]") {
 
     // Verify that all operations were recorded
     auto outcomes = feedback.getRecentOutcomes(numThreads * operationsPerThread);
-    REQUIRE(outcomes.is_ok());
+    REQUIRE(outcomes.has_value());
     REQUIRE(outcomes.value().size() <= config.maxStoredOutcomes);
 
     // Verify that metrics were recorded for each thread
     for (int i = 0; i < numThreads; ++i) {
         auto value = feedback.getMetricValue("metric_" + std::to_string(i));
-        REQUIRE(value.is_ok());
+        REQUIRE(value.has_value());
     }
 }
 
@@ -145,17 +145,17 @@ TEST_CASE("FeedbackLoop error handling", "[feedback_loop]") {
 
     SECTION("Empty metric name") {
         auto result = feedback.recordMetric("", 42.0);
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
     }
 
     SECTION("Nonexistent metric retrieval") {
         auto result = feedback.getMetricValue("nonexistent");
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
     }
 
     SECTION("Zero limit for recent outcomes") {
         auto result = feedback.getRecentOutcomes(0);
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE(result.value().empty());
     }
 }
@@ -194,7 +194,7 @@ TEST_CASE("FeedbackLoop statistical analysis", "[feedback_loop]") {
 
     SECTION("Detailed metrics calculation") {
         auto result = feedback.getDetailedMetrics();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         
         const auto& metrics = result.value();
         REQUIRE(metrics.basic.totalTransactions == 100);
@@ -218,7 +218,7 @@ TEST_CASE("FeedbackLoop statistical analysis", "[feedback_loop]") {
 
     SECTION("Latency distribution analysis") {
         auto result = feedback.analyzeLatencyDistribution();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         
         const auto& stats = result.value();
         REQUIRE_THAT(stats.mean, WithinRel(100.0, 0.2));
@@ -230,7 +230,7 @@ TEST_CASE("FeedbackLoop statistical analysis", "[feedback_loop]") {
 
     SECTION("Throughput distribution analysis") {
         auto result = feedback.analyzeThroughputDistribution();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         
         const auto& stats = result.value();
         REQUIRE(stats.min > 0);
@@ -240,7 +240,7 @@ TEST_CASE("FeedbackLoop statistical analysis", "[feedback_loop]") {
 
     SECTION("Latency trend analysis") {
         auto result = feedback.analyzeLatencyTrend();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         
         const auto& analysis = result.value();
         REQUIRE(analysis.forecast.size() == config.forecastHorizon);
@@ -249,7 +249,7 @@ TEST_CASE("FeedbackLoop statistical analysis", "[feedback_loop]") {
 
     SECTION("Error type distribution") {
         auto result = feedback.getErrorTypeDistribution();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         
         const auto& distribution = result.value();
         REQUIRE(distribution.count("timeout") > 0);
@@ -268,7 +268,7 @@ TEST_CASE("FeedbackLoop statistical analysis", "[feedback_loop]") {
         );
 
         auto result = feedback.getOutliers();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE(!result.value().empty());
         
         // Verify the outlier properties
@@ -291,7 +291,7 @@ TEST_CASE("FeedbackLoop configuration validation", "[feedback_loop]") {
         FeedbackLoop feedback(config);
 
         auto result = feedback.getDetailedMetrics();
-        REQUIRE_FALSE(result.is_ok());
+        REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error().find("disabled") != std::string::npos);
     }
 
@@ -317,7 +317,7 @@ TEST_CASE("FeedbackLoop configuration validation", "[feedback_loop]") {
         );
 
         auto result = feedback.getOutliers();
-        REQUIRE(result.is_ok());
+        REQUIRE(result.has_value());
         REQUIRE(!result.value().empty()); // Should detect the moderate outlier
     }
 } 

@@ -7,8 +7,10 @@
 #include <optional>
 #include <unordered_map>
 #include <atomic>
-#include "xenocomm/utils/result.h"
+#include <mutex>
+#include "xenocomm/utils/result.hpp"
 #include "xenocomm/core/security_config.hpp"
+#include "xenocomm/core/socket_defs.hpp"
 
 namespace xenocomm {
 namespace core {
@@ -63,44 +65,6 @@ struct SecurityEvent {
 };
 
 /**
- * @brief Supported encryption protocols
- */
-enum class EncryptionProtocol {
-    TLS_1_2,
-    TLS_1_3,
-    DTLS_1_2,
-    DTLS_1_3
-};
-
-/**
- * @brief Supported cipher suites
- */
-enum class CipherSuite {
-    AES_128_GCM_SHA256,
-    AES_256_GCM_SHA384,
-    CHACHA20_POLY1305_SHA256,
-    // Add more as needed
-};
-
-/**
- * @brief Configuration for the SecurityManager
- */
-struct SecurityConfig {
-    EncryptionProtocol protocol = EncryptionProtocol::TLS_1_3;
-    std::vector<CipherSuite> allowedCipherSuites = {
-        CipherSuite::AES_256_GCM_SHA384,
-        CipherSuite::CHACHA20_POLY1305_SHA256
-    };
-    std::string certificatePath;  // Path to certificate file
-    std::string privateKeyPath;   // Path to private key file
-    std::string caPath;           // Path to CA certificate
-    bool verifyPeer = true;       // Whether to verify peer certificates
-    bool allowSelfSigned = false; // Whether to allow self-signed certificates
-    std::chrono::seconds sessionTimeout{3600}; // Session timeout
-    uint32_t maxSessionCacheSize{1000}; // Maximum number of cached sessions
-};
-
-/**
  * @brief Represents a secure connection context
  */
 class SecureContext {
@@ -115,6 +79,15 @@ public:
     virtual bool isSelectiveEncryptionEnabled() const = 0;
     virtual void setSelectiveEncryption(bool enable) = 0;
     virtual const SecurityMetrics& getMetrics() const = 0;
+    virtual Result<void> shutdown() = 0;
+
+    // Added missing methods for SecureTransportWrapper compatibility
+    virtual Result<void> doHandshakeStep() = 0; 
+    virtual std::string getNegotiatedProtocol() const = 0;
+    virtual std::string getCipherName() const = 0;
+    virtual int getKeySize() const = 0;
+    virtual Result<std::vector<uint8_t>> generateDTLSCookie() = 0;
+    virtual bool verifyDTLSCookie(const std::vector<uint8_t>& cookie) = 0;
 };
 
 /**
@@ -128,7 +101,7 @@ public:
      * @param config Security configuration
      */
     explicit SecurityManager(const SecurityConfig& config);
-    virtual ~SecurityManager() = default;
+    virtual ~SecurityManager();
 
     /**
      * @brief Creates a new secure context for a connection
@@ -257,11 +230,11 @@ private:
     struct SSLData;
     std::unique_ptr<SSLData> sslData_; // Pimpl for OpenSSL data
     std::vector<SecurityEvent> securityEvents_;
-    std::mutex eventsMutex_;
+    mutable std::mutex eventsMutex_;
     std::unordered_map<std::string, std::chrono::system_clock::time_point> authCache_;
-    std::mutex authCacheMutex_;
+    mutable std::mutex authCacheMutex_;
     std::vector<std::shared_ptr<SecureContext>> connectionPool_;
-    std::mutex poolMutex_;
+    mutable std::mutex poolMutex_;
     Result<std::vector<uint8_t>> generateHmac(const std::vector<uint8_t>& data);
     std::vector<uint8_t> hmac_key_; // HMAC key for cookie generation
     std::chrono::seconds cookie_lifetime_{300}; // Cookie lifetime (5 minutes)

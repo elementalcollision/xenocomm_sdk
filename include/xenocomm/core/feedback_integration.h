@@ -4,6 +4,10 @@
 #include "xenocomm/core/transmission_manager.h"
 #include <memory>
 #include <functional>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <chrono>
 
 namespace xenocomm {
 
@@ -42,7 +46,7 @@ public:
      * @brief Strategy recommendations based on feedback analysis
      */
     struct StrategyRecommendation {
-        core::TransmissionManager::ErrorCorrectionMode error_mode;
+        core::ErrorCorrectionMode error_mode;
         core::TransmissionManager::FragmentConfig fragment_config;
         core::TransmissionManager::RetransmissionConfig retry_config;
         core::TransmissionManager::FlowControlConfig flow_config;
@@ -59,7 +63,10 @@ public:
     FeedbackIntegration(
         FeedbackLoop& feedback_loop,
         core::TransmissionManager& transmission_mgr,
-        const Config& config = Config{});
+        const Config& config)
+    : feedback_loop_(feedback_loop), transmission_mgr_(transmission_mgr), config_(config) {
+        // Constructor body (if any)
+    }
 
     /**
      * @brief Starts the feedback integration

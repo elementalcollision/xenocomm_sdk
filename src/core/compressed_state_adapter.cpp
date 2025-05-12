@@ -212,10 +212,10 @@ TranscodingMetadata CompressedStateAdapter::getMetadata(const std::vector<uint8_
     
     TranscodingMetadata metadata;
     metadata.format = DataFormat::COMPRESSED_STATE;
-    metadata.original_size = header.original_size;
-    metadata.compressed_size = encoded_data.size() - header_size;
-    metadata.compression_ratio = static_cast<float>(metadata.compressed_size) / header.original_size;
-    metadata.additional_info = metadata_json;
+    metadata.uncompressed_data_size = header.original_size;
+    metadata.encoded_data_size = encoded_data.size() - header_size;
+    metadata.compression_ratio_value = static_cast<float>(metadata.encoded_data_size) / header.original_size;
+    metadata.custom_metadata_json = metadata_json;
     
     return metadata;
 }

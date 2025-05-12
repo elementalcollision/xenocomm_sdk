@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "xenocomm/core/transport_protocol.hpp"
 
 namespace xenocomm {
 namespace core {
@@ -18,16 +19,6 @@ enum class ConnectionStatus {
     Connecting,
     Connected,
     Error
-};
-
-/**
- * @brief Configuration options for a connection
- */
-struct ConnectionConfig {
-    std::chrono::milliseconds timeout{5000}; // Default 5 second timeout
-    bool autoReconnect{true};
-    uint32_t maxRetries{3};
-    std::chrono::milliseconds retryDelay{1000}; // Default 1 second between retries
 };
 
 /**

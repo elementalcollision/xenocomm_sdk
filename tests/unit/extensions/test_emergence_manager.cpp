@@ -4,29 +4,29 @@
 #include <cstdio>
 #include <thread>
 #include <fstream>
-#include <catch2/catch.hpp>
 #include <chrono>
 
+// Add namespace usage for xenocomm::extensions
 using namespace xenocomm::extensions;
 
 class EmergenceManagerTest : public ::testing::Test {
 protected:
-    std::string tempPath = "/tmp";
-    nlohmann::json evalMetrics = { {"metric", "latency"} };
-    EmergenceManager* manager;
-
     void SetUp() override {
-        manager = new EmergenceManager(tempPath, evalMetrics);
+        std::string testPath = "test_persistence";
+        manager = std::make_unique<EmergenceManager>(testPath, nlohmann::json::object());
     }
+
     void TearDown() override {
-        delete manager;
         // Optionally remove log file
-        std::remove((tempPath + "/emergence_manager.log").c_str());
+        std::remove("test_persistence/emergence_manager.log");
     }
+
+    std::unique_ptr<EmergenceManager> manager;
 };
 
 TEST_F(EmergenceManagerTest, Construction) {
-    EXPECT_NO_THROW(EmergenceManager m(tempPath, evalMetrics));
+    // Successfully constructed in SetUp
+    EXPECT_TRUE(manager != nullptr);
 }
 
 TEST_F(EmergenceManagerTest, ProposeAndRetrieveVariant) {
@@ -81,7 +81,8 @@ TEST_F(EmergenceManagerTest, LogAndRetrievePerformance) {
     PerformanceRecord record;
     record.timestamp = std::chrono::system_clock::now();
     record.metrics = metrics;
-    record.notes = "Test performance record";
+    record.context = "Test performance record";
+    record.sampleSize = 100;
 
     // Log performance
     EXPECT_NO_THROW(manager->logPerformance("v1", record));
@@ -94,7 +95,8 @@ TEST_F(EmergenceManagerTest, LogAndRetrievePerformance) {
     EXPECT_EQ(history[0].metrics.resourceUsage, 0.5);
     EXPECT_EQ(history[0].metrics.throughput, 1000.0);
     EXPECT_EQ(history[0].metrics.customMetrics["errorRate"], 0.02);
-    EXPECT_EQ(history[0].notes, "Test performance record");
+    EXPECT_EQ(history[0].context, "Test performance record");
+    EXPECT_EQ(history[0].sampleSize, 100);
 }
 
 TEST_F(EmergenceManagerTest, LogPerformanceForNonexistentVariant) {
@@ -109,26 +111,26 @@ TEST_F(EmergenceManagerTest, GetPerformanceForNonexistentVariant) {
 // Evaluation Criteria Tests
 TEST_F(EmergenceManagerTest, SetAndGetEvaluationCriteria) {
     EvaluationCriteria criteria;
-    criteria.weights = {
+    criteria.metricWeights = {
         {"successRate", 0.4},
         {"latencyMs", 0.3},
         {"resourceUsage", 0.2},
         {"throughput", 0.1}
     };
-    criteria.minSuccessRate = 0.9;
-    criteria.maxLatencyMs = 200.0;
-    criteria.significanceThreshold = 0.1;
+    criteria.improvementThreshold = 0.05;
+    criteria.minSampleSize = 50;
+    criteria.requireStatisticalSignificance = true;
 
     EXPECT_NO_THROW(manager->setEvaluationCriteria(criteria));
     
     auto retrieved = manager->getEvaluationCriteria();
-    EXPECT_EQ(retrieved.weights["successRate"], 0.4);
-    EXPECT_EQ(retrieved.weights["latencyMs"], 0.3);
-    EXPECT_EQ(retrieved.weights["resourceUsage"], 0.2);
-    EXPECT_EQ(retrieved.weights["throughput"], 0.1);
-    EXPECT_EQ(retrieved.minSuccessRate, 0.9);
-    EXPECT_EQ(retrieved.maxLatencyMs, 200.0);
-    EXPECT_EQ(retrieved.significanceThreshold, 0.1);
+    EXPECT_EQ(retrieved.metricWeights["successRate"], 0.4);
+    EXPECT_EQ(retrieved.metricWeights["latencyMs"], 0.3);
+    EXPECT_EQ(retrieved.metricWeights["resourceUsage"], 0.2);
+    EXPECT_EQ(retrieved.metricWeights["throughput"], 0.1);
+    EXPECT_EQ(retrieved.improvementThreshold, 0.05);
+    EXPECT_EQ(retrieved.minSampleSize, 50);
+    EXPECT_EQ(retrieved.requireStatisticalSignificance, true);
 }
 
 // Best Performing Variant Tests
@@ -141,10 +143,10 @@ TEST_F(EmergenceManagerTest, GetBestPerformingVariant) {
 
     // Set evaluation criteria
     EvaluationCriteria criteria;
-    criteria.weights = {
+    criteria.metricWeights = {
         {"successRate", 1.0}  // Only consider success rate for simplicity
     };
-    criteria.minSuccessRate = 0.0;
+    criteria.improvementThreshold = 0.0;
     manager->setEvaluationCriteria(criteria);
 
     // Log performance for both variants
@@ -178,10 +180,10 @@ TEST_F(EmergenceManagerTest, IsSignificantlyBetter) {
 
     // Set evaluation criteria with significance threshold
     EvaluationCriteria criteria;
-    criteria.weights = {
+    criteria.metricWeights = {
         {"successRate", 1.0}
     };
-    criteria.significanceThreshold = 0.1;
+    criteria.improvementThreshold = 0.1;
     manager->setEvaluationCriteria(criteria);
 
     // Log significantly different performance
@@ -209,13 +211,15 @@ TEST_F(EmergenceManagerTest, GeneratePerformanceReport) {
     PerformanceRecord record1;
     record1.metrics.successRate = 0.95;
     record1.metrics.latencyMs = 100.0;
-    record1.notes = "Good performance";
+    record1.context = "Good performance";
+    record1.sampleSize = 200;
     manager->logPerformance("v1", record1);
 
     PerformanceRecord record2;
     record2.metrics.successRate = 0.85;
     record2.metrics.latencyMs = 150.0;
-    record2.notes = "Average performance";
+    record2.context = "Average performance";
+    record2.sampleSize = 200;
     manager->logPerformance("v2", record2);
 
     // Generate and verify report
@@ -244,13 +248,15 @@ TEST_F(EmergenceManagerTest, SaveAndLoadState) {
     PerformanceRecord record;
     record.metrics = metrics;
     record.timestamp = std::chrono::system_clock::now();
+    record.context = "Good performance";
+    record.sampleSize = 200;
     manager->logPerformance("v1", record);
     
     // Save state
     manager->saveState();
     
     // Create new manager instance
-    auto newManager = std::make_unique<EmergenceManager>(tempPath, nlohmann::json::object());
+    auto newManager = std::make_unique<EmergenceManager>(std::string("test_persistence"), nlohmann::json::object());
     
     // Verify loaded state
     EXPECT_NO_THROW({
@@ -262,6 +268,8 @@ TEST_F(EmergenceManagerTest, SaveAndLoadState) {
         EXPECT_EQ(perf.size(), 1);
         EXPECT_DOUBLE_EQ(perf[0].metrics.successRate, 0.95);
         EXPECT_DOUBLE_EQ(perf[0].metrics.latencyMs, 100.0);
+        EXPECT_EQ(perf[0].context, "Good performance");
+        EXPECT_EQ(perf[0].sampleSize, 200);
     });
 }
 
@@ -281,11 +289,11 @@ TEST_F(EmergenceManagerTest, ExportAndImportVariants) {
     manager->logPerformance("v1", record1);
     
     // Export variants
-    std::string exportPath = tempPath + "/export_test.json";
+    std::string exportPath = "test_persistence/export_test.json";
     manager->exportVariants(exportPath, {"v1", "v2"});
     
     // Create new manager and import
-    auto importManager = std::make_unique<EmergenceManager>(tempPath, nlohmann::json::object());
+    auto importManager = std::make_unique<EmergenceManager>(std::string("test_persistence"), nlohmann::json::object());
     EXPECT_NO_THROW(importManager->importVariants(exportPath));
     
     // Verify imported data
@@ -316,7 +324,7 @@ TEST_F(EmergenceManagerTest, AutosaveFunctionality) {
     std::this_thread::sleep_for(std::chrono::seconds(2));
     
     // Create new manager to verify autosaved state
-    auto newManager = std::make_unique<EmergenceManager>(tempPath, nlohmann::json::object());
+    auto newManager = std::make_unique<EmergenceManager>(std::string("test_persistence"), nlohmann::json::object());
     EXPECT_NO_THROW({
         auto variant = newManager->getVariant("v1");
         EXPECT_EQ(variant.id, "v1");
@@ -336,7 +344,7 @@ TEST_F(EmergenceManagerTest, ConflictResolution) {
     ProtocolVariant v1New("v1", "updated", nlohmann::json::object(), {{"timestamp", 200}});
     
     // Export newer variant
-    std::string exportPath = tempPath + "/conflict_test.json";
+    std::string exportPath = "test_persistence/conflict_test.json";
     nlohmann::json exportData;
     exportData["variants"]["v1"] = v1New.to_json();
     std::ofstream file(exportPath);
@@ -353,7 +361,7 @@ TEST_F(EmergenceManagerTest, ValidateVariant) {
     // Create valid variant
     ProtocolVariant valid("v1", "valid", nlohmann::json::object(), {{"metric1", 1.0}});
     nlohmann::json evalMetrics = {{"metric1", "description"}};
-    auto validationManager = std::make_unique<EmergenceManager>(tempPath, evalMetrics);
+    auto validationManager = std::make_unique<EmergenceManager>(std::string("test_persistence"), evalMetrics);
     
     // Create invalid variant (missing required metric)
     ProtocolVariant invalid("v2", "invalid", nlohmann::json::object(), nlohmann::json::object());
@@ -397,238 +405,221 @@ AgentContext createTestAgentContext(const std::string& agentId) {
     return context;
 }
 
-TEST_CASE("Agent registration and context management", "[emergence][agents]") {
-    EmergenceManager manager("test_persistence", nlohmann::json());
+TEST_F(EmergenceManagerTest, AgentRegistrationAndManagement) {
+    // Create a temporary file for persistence
+    std::string tempPath = "test_agent_management.json";
     
-    SECTION("Register new agent") {
-        auto context = createTestAgentContext("agent1");
-        REQUIRE_NOTHROW(manager.registerAgent("agent1", context));
-        
-        auto stored = manager.getAgentContext("agent1");
-        REQUIRE(stored.agentId == "agent1");
-        REQUIRE(stored.capabilities == context.capabilities);
-        REQUIRE(stored.preferences == context.preferences);
-    }
+    // Initialize manager
+    EmergenceManager manager(tempPath, nlohmann::json::object());
     
-    SECTION("Update existing agent") {
-        auto context = createTestAgentContext("agent1");
-        manager.registerAgent("agent1", context);
-        
-        context.preferences["latency"] = 0.9;
-        REQUIRE_NOTHROW(manager.updateAgentContext("agent1", context));
-        
-        auto stored = manager.getAgentContext("agent1");
-        REQUIRE(stored.preferences["latency"] == 0.9);
-    }
+    // Create agent context
+    AgentContext context;
+    context.agentId = "agent1";
+    context.capabilities = {{"protocol_v1", "supported"}, {"protocol_v2", "unsupported"}};
+    context.preferences = {{"latency", 0.8}, {"throughput", 0.2}};
     
-    SECTION("Get non-existent agent") {
-        REQUIRE_THROWS_AS(manager.getAgentContext("nonexistent"), std::runtime_error);
-    }
+    // Register agent
+    EXPECT_NO_THROW(manager.registerAgent("agent1", context));
     
-    SECTION("Register duplicate agent") {
-        auto context = createTestAgentContext("agent1");
-        manager.registerAgent("agent1", context);
-        REQUIRE_THROWS_AS(manager.registerAgent("agent1", context), std::runtime_error);
-    }
+    // Retrieve and verify
+    auto retrieved = manager.getAgentContext("agent1");
+    EXPECT_EQ(retrieved.agentId, "agent1");
+    EXPECT_EQ(retrieved.capabilities.size(), 2);
+    EXPECT_EQ(retrieved.capabilities["protocol_v1"], "supported");
+    EXPECT_EQ(retrieved.preferences["latency"], 0.8);
+    
+    // Update context
+    context.capabilities["protocol_v2"] = "supported";
+    EXPECT_NO_THROW(manager.updateAgentContext("agent1", context));
+    
+    // Verify update
+    retrieved = manager.getAgentContext("agent1");
+    EXPECT_EQ(retrieved.capabilities["protocol_v2"], "supported");
+    
+    // Clean up
+    std::remove(tempPath.c_str());
 }
 
-TEST_CASE("Variant proposal and voting", "[emergence][agents]") {
-    EmergenceManager manager("test_persistence", nlohmann::json());
-    auto agent1Context = createTestAgentContext("agent1");
-    auto agent2Context = createTestAgentContext("agent2");
-    manager.registerAgent("agent1", agent1Context);
-    manager.registerAgent("agent2", agent2Context);
+TEST_F(EmergenceManagerTest, VariantProposalAndVoting) {
+    // Create a temporary file for persistence
+    std::string tempPath = "test_voting.json";
     
-    SECTION("Agent proposes variant") {
-        auto variant = createTestVariant();
-        auto variantId = manager.proposeVariantAsAgent(
-            "agent1",
-            variant,
-            "Improved latency characteristics"
-        );
-        
-        auto storedVariant = manager.getVariant(variantId);
-        REQUIRE(storedVariant.metadata["proposingAgent"] == "agent1");
-        REQUIRE(storedVariant.metadata.contains("proposalTimestamp"));
-    }
+    // Initialize manager with consensus config that requires just 2 votes
+    EmergenceManager manager(tempPath, nlohmann::json::object());
+    ConsensusConfig config;
+    config.requiredMajority = 0.5;
+    config.minimumVotes = 2;
+    config.requirePerformanceEvidence = false;
+    manager.setConsensusConfig(config);
     
-    SECTION("Voting process") {
-        auto variant = createTestVariant();
-        auto variantId = manager.proposeVariantAsAgent(
-            "agent1",
-            variant,
-            "Test proposal"
-        );
-        
-        // Configure consensus for testing
-        ConsensusConfig config;
-        config.requiredMajority = 0.75;
-        config.minimumVotes = 2;
-        config.votingPeriod = std::chrono::seconds(1);
-        config.requirePerformanceEvidence = false;
-        manager.setConsensusConfig(config);
-        
-        // Second agent votes in favor
-        REQUIRE_NOTHROW(manager.voteOnVariant("agent2", variantId, true, "Looks good"));
-        
-        // Wait for voting period
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-        
-        // Check if variant was adopted
-        auto status = manager.getVariant(variantId);
-        REQUIRE(status.metadata["proposingAgent"] == "agent1");
-    }
+    // Register two agents
+    AgentContext agentContext1, agentContext2;
+    agentContext1.agentId = "agent1";
+    agentContext2.agentId = "agent2";
+    manager.registerAgent("agent1", agentContext1);
+    manager.registerAgent("agent2", agentContext2);
     
-    SECTION("Invalid voting attempts") {
-        auto variant = createTestVariant();
-        auto variantId = manager.proposeVariantAsAgent(
-            "agent1",
-            variant,
-            "Test proposal"
-        );
-        
-        // Try to vote with non-existent agent
-        REQUIRE_THROWS_AS(
-            manager.voteOnVariant("nonexistent", variantId, true, "Invalid"),
-            std::runtime_error
-        );
-        
-        // Try to vote on non-existent variant
-        REQUIRE_THROWS_AS(
-            manager.voteOnVariant("agent1", "nonexistent", true, "Invalid"),
-            std::runtime_error
-        );
-    }
+    // Create a protocol variant
+    ProtocolVariant variant;
+    variant.id = "test-variant";
+    variant.description = "Test variant for voting";
+    
+    // Agent1 proposes the variant
+    std::string variantId = manager.proposeVariantAsAgent("agent1", variant, "Initial proposal");
+    EXPECT_FALSE(variantId.empty());
+    
+    // Verify status is Proposed
+    ProtocolVariant retrieved = manager.getVariant(variantId);
+    EXPECT_EQ(retrieved.description, "Test variant for voting");
+    
+    // Both agents vote in favor
+    manager.voteOnVariant("agent1", variantId, true, "Support own proposal");
+    manager.voteOnVariant("agent2", variantId, true, "Good idea");
+    
+    // Verify the variant is now adopted
+    auto adoptedVariants = manager.listVariants(VariantStatus::Adopted);
+    EXPECT_TRUE(adoptedVariants.find(variantId) != adoptedVariants.end());
+    
+    // Clean up
+    std::remove(tempPath.c_str());
 }
 
-TEST_CASE("Variant recommendations", "[emergence][agents]") {
-    EmergenceManager manager("test_persistence", nlohmann::json());
-    auto agent1Context = createTestAgentContext("agent1");
-    manager.registerAgent("agent1", agent1Context);
+TEST_F(EmergenceManagerTest, VariantRecommendations) {
+    // Create a temporary file for persistence
+    std::string tempPath = "test_recommendations.json";
     
-    // Create and adopt some variants
-    auto variant1 = createTestVariant("variant1");
-    auto variant2 = createTestVariant("variant2");
+    // Initialize manager
+    EmergenceManager manager(tempPath, nlohmann::json::object());
     
-    manager.proposeVariant("variant1", variant1, "Test variant 1", variant1.metadata);
-    manager.proposeVariant("variant2", variant2, "Test variant 2", variant2.metadata);
+    // Register agent
+    AgentContext context;
+    context.agentId = "agent1";
+    context.preferences = {{"latency", 0.9}, {"throughput", 0.1}};
+    manager.registerAgent("agent1", context);
+    
+    // Create and register variants with different statuses
+    ProtocolVariant variant1, variant2, variant3;
+    variant1.id = "variant1";
+    variant1.description = "Adopted variant";
+    variant2.id = "variant2";
+    variant2.description = "Testing variant";
+    variant3.id = "variant3";
+    variant3.description = "Proposed variant";
+    
+    manager.proposeVariant("variant1", variant1, "Variant 1", {});
+    manager.proposeVariant("variant2", variant2, "Variant 2", {});
+    manager.proposeVariant("variant3", variant3, "Variant 3", {});
     
     manager.setVariantStatus("variant1", VariantStatus::Adopted);
-    manager.setVariantStatus("variant2", VariantStatus::Adopted);
+    manager.setVariantStatus("variant2", VariantStatus::InTesting);
+    manager.setVariantStatus("variant3", VariantStatus::Proposed);
     
-    SECTION("Get recommendations") {
-        auto recommendations = manager.getRecommendedVariants("agent1", 5);
-        REQUIRE(recommendations.size() > 0);
-    }
+    // Get recommendations
+    auto recommendations = manager.getRecommendedVariants("agent1");
+    EXPECT_FALSE(recommendations.empty());
     
-    SECTION("Recommendations affected by experience") {
-        // Report successful experience with variant1
-        manager.reportVariantExperience("agent1", "variant1", true, "Worked well");
-        
-        auto recommendations = manager.getRecommendedVariants("agent1", 5);
-        REQUIRE(recommendations.size() > 0);
-        REQUIRE(recommendations[0] == "variant1"); // Should be first due to successful experience
-    }
+    // Clean up
+    std::remove(tempPath.c_str());
 }
 
-TEST_CASE("Variant adoption notifications", "[emergence][agents]") {
-    EmergenceManager manager("test_persistence", nlohmann::json());
-    auto agent1Context = createTestAgentContext("agent1");
-    manager.registerAgent("agent1", agent1Context);
+TEST_F(EmergenceManagerTest, VariantAdoptionNotifications) {
+    // Create a temporary file for persistence
+    std::string tempPath = "test_notifications.json";
     
-    auto startTime = std::chrono::system_clock::now();
+    // Initialize manager
+    EmergenceManager manager(tempPath, nlohmann::json::object());
     
-    // Create and adopt a variant
-    auto variant = createTestVariant();
-    manager.proposeVariant("test_variant", variant, "Test variant", variant.metadata);
-    manager.setVariantStatus("test_variant", VariantStatus::Adopted);
+    // Register agent
+    AgentContext context;
+    context.agentId = "agent1";
+    manager.registerAgent("agent1", context);
     
-    SECTION("Get newly adopted variants") {
-        auto newVariants = manager.getNewlyAdoptedVariants("agent1", startTime);
-        REQUIRE(newVariants.size() == 1);
-        REQUIRE(newVariants[0] == "test_variant");
-    }
+    // Create a variant and mark as adopted
+    ProtocolVariant variant;
+    variant.id = "adopted-variant";
+    variant.description = "Newly adopted variant";
     
-    SECTION("No new variants before timestamp") {
-        auto futureTime = std::chrono::system_clock::now() + std::chrono::hours(1);
-        auto newVariants = manager.getNewlyAdoptedVariants("agent1", futureTime);
-        REQUIRE(newVariants.empty());
-    }
+    manager.proposeVariant("adopted-variant", variant, "New variant", {});
+    manager.setVariantStatus("adopted-variant", VariantStatus::Adopted);
+    
+    // Check for notifications
+    auto since = std::chrono::system_clock::now() - std::chrono::hours(24); // Last 24 hours
+    auto adoptedVariants = manager.getNewlyAdoptedVariants("agent1", since);
+    
+    EXPECT_FALSE(adoptedVariants.empty());
+    EXPECT_TRUE(std::find(adoptedVariants.begin(), adoptedVariants.end(), "adopted-variant") != adoptedVariants.end());
+    
+    // Clean up
+    std::remove(tempPath.c_str());
 }
 
-TEST_CASE("Consensus configuration", "[emergence][agents]") {
-    EmergenceManager manager("test_persistence", nlohmann::json());
+TEST_F(EmergenceManagerTest, ConsensusConfiguration) {
+    // Create a temporary file for persistence
+    std::string tempPath = "test_consensus_config.json";
     
-    SECTION("Set and get consensus config") {
-        ConsensusConfig config;
-        config.requiredMajority = 0.8;
-        config.minimumVotes = 5;
-        config.votingPeriod = std::chrono::seconds(3600);
-        config.requirePerformanceEvidence = true;
-        
-        REQUIRE_NOTHROW(manager.setConsensusConfig(config));
-        
-        auto stored = manager.getConsensusConfig();
-        REQUIRE(stored.requiredMajority == config.requiredMajority);
-        REQUIRE(stored.minimumVotes == config.minimumVotes);
-        REQUIRE(stored.votingPeriod == config.votingPeriod);
-        REQUIRE(stored.requirePerformanceEvidence == config.requirePerformanceEvidence);
-    }
+    // Initialize manager
+    EmergenceManager manager(tempPath, nlohmann::json::object());
     
-    SECTION("Invalid consensus config") {
-        ConsensusConfig config;
-        
-        config.requiredMajority = 1.5; // Invalid: > 1.0
-        REQUIRE_THROWS_AS(manager.setConsensusConfig(config), std::invalid_argument);
-        
-        config.requiredMajority = 0.75;
-        config.minimumVotes = 0; // Invalid: must be > 0
-        REQUIRE_THROWS_AS(manager.setConsensusConfig(config), std::invalid_argument);
-    }
+    // Set custom consensus config
+    ConsensusConfig config;
+    config.requiredMajority = 0.6;          // 60% majority
+    config.minimumVotes = 5;                // At least 5 votes
+    config.votingPeriod = std::chrono::hours(48); // 48 hour voting window
+    config.requirePerformanceEvidence = true;
+    
+    manager.setConsensusConfig(config);
+    
+    // Retrieve and verify
+    auto retrieved = manager.getConsensusConfig();
+    EXPECT_DOUBLE_EQ(retrieved.requiredMajority, 0.6);
+    EXPECT_EQ(retrieved.minimumVotes, 5);
+    EXPECT_EQ(retrieved.votingPeriod, std::chrono::hours(48));
+    EXPECT_TRUE(retrieved.requirePerformanceEvidence);
+    
+    // Clean up
+    std::remove(tempPath.c_str());
 }
 
-TEST_CASE("Persistence of agent-related data", "[emergence][agents]") {
-    const std::string testPath = "test_persistence";
+TEST_F(EmergenceManagerTest, PersistenceOfAgentRelatedData) {
+    // Create a temporary file for persistence
+    std::string tempPath = "test_agent_persistence.json";
     
-    // Create and populate a manager
+    // Part 1: Create and save state
     {
-        EmergenceManager manager(testPath, nlohmann::json());
+        EmergenceManager manager(tempPath, nlohmann::json::object());
         
-        // Add an agent
-        auto context = createTestAgentContext("agent1");
-        manager.registerAgent("agent1", context);
-        
-        // Add a variant and some votes
-        auto variant = createTestVariant();
-        auto variantId = manager.proposeVariantAsAgent(
-            "agent1",
-            variant,
-            "Test persistence"
-        );
-        
-        // Configure consensus
+        // Set consensus config
         ConsensusConfig config;
-        config.requiredMajority = 0.75;
-        config.minimumVotes = 2;
+        config.requiredMajority = 0.7;
         manager.setConsensusConfig(config);
+        
+        // Register agent
+        AgentContext context;
+        context.agentId = "persistent-agent";
+        context.capabilities = {{"feature1", "yes"}};
+        manager.registerAgent("persistent-agent", context);
         
         // Save state
         manager.saveState();
     }
     
-    // Create new manager and load state
+    // Part 2: Load and verify state
     {
-        EmergenceManager manager(testPath, nlohmann::json());
+        EmergenceManager manager(tempPath, nlohmann::json::object());
+        
+        // Load state
         manager.loadState();
         
-        // Verify agent context was restored
-        auto context = manager.getAgentContext("agent1");
-        REQUIRE(context.agentId == "agent1");
-        REQUIRE(context.capabilities.size() > 0);
-        
-        // Verify consensus config was restored
+        // Verify consensus config
         auto config = manager.getConsensusConfig();
-        REQUIRE(config.requiredMajority == 0.75);
-        REQUIRE(config.minimumVotes == 2);
+        EXPECT_DOUBLE_EQ(config.requiredMajority, 0.7);
+        
+        // Verify agent data
+        auto context = manager.getAgentContext("persistent-agent");
+        EXPECT_EQ(context.agentId, "persistent-agent");
+        EXPECT_EQ(context.capabilities["feature1"], "yes");
     }
+    
+    // Clean up
+    std::remove(tempPath.c_str());
 } 

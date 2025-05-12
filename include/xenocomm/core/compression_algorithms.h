@@ -70,7 +70,13 @@ public:
      */
     virtual std::string getAlgorithmId() const = 0;
 
-protected:
+    /**
+     * @brief Create a polymorphic copy of this algorithm instance.
+     * @return A unique_ptr to a copy of the concrete algorithm.
+     */
+    virtual std::unique_ptr<CompressionAlgorithm> clone() const = 0;
+
+public:
     /**
      * @brief Calculate checksum for data integrity validation
      * @param data Data to calculate checksum for
@@ -96,6 +102,9 @@ public:
     std::vector<uint8_t> decompress(const std::vector<uint8_t>& compressed_data) override;
     bool isSuitableFor(const std::vector<uint8_t>& data) const override;
     std::string getAlgorithmId() const override { return "RLE"; }
+    std::unique_ptr<CompressionAlgorithm> clone() const override {
+        return std::make_unique<RunLengthEncoding>(*this);
+    }
 };
 
 /**
@@ -108,6 +117,9 @@ public:
     std::vector<uint8_t> decompress(const std::vector<uint8_t>& compressed_data) override;
     bool isSuitableFor(const std::vector<uint8_t>& data) const override;
     std::string getAlgorithmId() const override { return "DELTA"; }
+    std::unique_ptr<CompressionAlgorithm> clone() const override {
+        return std::make_unique<DeltaEncoding>(*this);
+    }
 };
 
 } // namespace core

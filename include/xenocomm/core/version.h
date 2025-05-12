@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <functional> // Include for std::hash
 
 namespace xenocomm {
 namespace core {
@@ -126,3 +127,28 @@ struct Version {
 
 } // namespace core
 } // namespace xenocomm 
+
+// Add the hash specialization in the std namespace
+namespace std {
+   template <>
+   struct hash<xenocomm::core::Version> {
+       std::size_t operator()(const xenocomm::core::Version& v) const noexcept {
+           // Combine hashes using a method similar to boost::hash_combine
+           std::size_t seed = 0;
+           std::hash<uint16_t> hasher;
+           // Combine major, minor, and patch hashes
+           seed ^= hasher(v.major) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+           seed ^= hasher(v.minor) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+           seed ^= hasher(v.patch) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+           return seed;
+       }
+   };
+} // namespace std
+
+// REMOVED: std::hash specialization moved to capability_signaler.h
+// namespace std {
+//    template <>
+//    struct hash<xenocomm::core::Version> {
+//        // ... implementation ...
+//    };
+// } 

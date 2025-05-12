@@ -3,16 +3,17 @@
 #include <pybind11/chrono.h>
 #include <pybind11/functional.h>
 #include "xenocomm/core/transmission_manager.h"
+#include "xenocomm/core/error_correction_mode.h"
 
 namespace py = pybind11;
 using namespace xenocomm::core;
 
 void init_transmission_manager(py::module& m) {
     // Bind ErrorCorrectionMode enum
-    py::enum_<TransmissionManager::ErrorCorrectionMode>(m, "ErrorCorrectionMode")
-        .value("NONE", TransmissionManager::ErrorCorrectionMode::NONE)
-        .value("CHECKSUM_ONLY", TransmissionManager::ErrorCorrectionMode::CHECKSUM_ONLY)
-        .value("REED_SOLOMON", TransmissionManager::ErrorCorrectionMode::REED_SOLOMON)
+    py::enum_<ErrorCorrectionMode>(m, "ErrorCorrectionMode")
+        .value("NONE", ErrorCorrectionMode::NONE)
+        .value("CHECKSUM_ONLY", ErrorCorrectionMode::CHECKSUM_ONLY)
+        .value("REED_SOLOMON", ErrorCorrectionMode::REED_SOLOMON)
         .export_values();
 
     // Bind RetryEventType enum
@@ -52,12 +53,7 @@ void init_transmission_manager(py::module& m) {
 
     // Bind SecurityConfig struct
     py::class_<SecurityConfig>(m, "SecurityConfig")
-        .def(py::init<>())
-        .def_readwrite("enable_encryption", &SecurityConfig::enable_encryption)
-        .def_readwrite("require_encryption", &SecurityConfig::require_encryption)
-        .def_readwrite("verify_hostname", &SecurityConfig::verify_hostname)
-        .def_readwrite("expected_hostname", &SecurityConfig::expected_hostname)
-        .def_readwrite("security_manager", &SecurityConfig::security_manager);
+        .def(py::init<>());
 
     // Bind TransmissionStats struct
     py::class_<TransmissionManager::TransmissionStats>(m, "TransmissionStats")

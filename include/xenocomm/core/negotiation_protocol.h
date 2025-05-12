@@ -7,6 +7,9 @@
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
+#include <functional>
+#include <chrono>
+#include <unordered_map>
 
 namespace xenocomm {
 namespace core {
@@ -14,7 +17,7 @@ namespace core {
 /**
  * @brief Defines possible data formats for communication sessions.
  */
-enum class DataFormat {
+enum class DataFormat : uint8_t {
     VECTOR_FLOAT32,
     VECTOR_INT8,
     COMPRESSED_STATE,
@@ -26,7 +29,7 @@ enum class DataFormat {
 /**
  * @brief Defines possible compression algorithms.
  */
-enum class CompressionAlgorithm {
+enum class CompressionAlgorithm : uint8_t {
     NONE,
     ZLIB,
     LZ4,
@@ -37,7 +40,7 @@ enum class CompressionAlgorithm {
 /**
  * @brief Defines possible error correction schemes.
  */
-enum class ErrorCorrectionScheme {
+enum class ErrorCorrectionScheme : uint8_t {
     NONE,
     CHECKSUM_ONLY,
     REED_SOLOMON,
@@ -64,6 +67,7 @@ enum class KeyExchangeMethod {
     DH,          // Classic Diffie-Hellman
     ECDH_P256,   // Elliptic Curve DH with NIST P-256
     ECDH_P384,   // Elliptic Curve DH with NIST P-384
+    ECDH_P521,   // Elliptic Curve DH with NIST P-521
     ECDH_X25519  // Curve25519-based ECDH
 };
 
@@ -73,15 +77,20 @@ enum class KeyExchangeMethod {
 enum class AuthenticationMethod {
     NONE,
     HMAC_SHA256,
+    HMAC_SHA384,
     HMAC_SHA512,
-    ED25519_SIGNATURE,
-    RSA_SIGNATURE
+    RSA_PSS,
+    RSA_SIGNATURE,
+    ECDSA_P256,
+    ECDSA_P384,
+    ED25519_SIGNATURE
 };
 
 /**
  * @brief Defines supported key sizes.
  */
 enum class KeySize {
+    NONE,
     BITS_128,
     BITS_192,
     BITS_256,
@@ -393,6 +402,45 @@ enum class NegotiationState {
     PROPOSAL_RECEIVED,  // Received initial proposal, waiting for local decision
     RESPONDING,         // Sending accept/counter/reject response
     AWAITING_FINALIZATION // Sent ACCEPT or COUNTER, waiting for final confirmation from Initiator
+};
+
+// Handler for state change notifications
+using StateChangeHandler = std::function<void(NegotiationState, NegotiationState, const std::string&)>;
+
+// --- NegotiationSessionData struct (now in header) ---
+struct NegotiationSessionData {
+    std::string initiatorAgentId;
+    std::string targetAgentId;
+    NegotiableParams initialProposal;
+    std::optional<NegotiableParams> counterProposal;
+    std::optional<NegotiableParams> finalParams;
+    NegotiationState state = NegotiationState::IDLE; // Default to IDLE
+    // Timing information for timeout handling
+    std::chrono::steady_clock::time_point createdTime = std::chrono::steady_clock::now();
+    std::unordered_map<NegotiationState, std::chrono::steady_clock::time_point> stateTimestamps;
+    // Retry counters
+    int retryCount = 0;
+    // Additional metadata
+    std::optional<std::string> lastError;
+    std::optional<std::string> failureReason;
+    // Track fallback attempts
+    std::vector<NegotiableParams> triedProposals;
+    size_t fallbackAttempts = 0;
+    static constexpr size_t MAX_FALLBACK_ATTEMPTS = 3;
+    // Store remote capabilities for fallback generation
+    std::vector<DataFormat> remoteFormats;
+    std::vector<CompressionAlgorithm> remoteCompression;
+    std::vector<ErrorCorrectionScheme> remoteErrorCorrection;
+    std::vector<EncryptionAlgorithm> remoteEncryption;
+    std::vector<KeyExchangeMethod> remoteKeyExchange;
+    std::vector<AuthenticationMethod> remoteAuth;
+    std::vector<KeySize> remoteKeySizes;
+    // Constructor with initialization
+    NegotiationSessionData() {
+        // Record initial state timestamp
+        stateTimestamps[NegotiationState::IDLE] = createdTime;
+        fallbackAttempts = 0;
+    }
 };
 
 /**

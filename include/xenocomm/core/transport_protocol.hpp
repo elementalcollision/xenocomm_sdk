@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <chrono>
 
 namespace xenocomm {
 namespace core {
@@ -153,6 +154,86 @@ public:
      * @throws std::runtime_error if receive fails.
      */
     virtual ssize_t receive(uint8_t* buffer, size_t size) = 0;
+
+    /**
+     * @brief Get the peer address and port.
+     * 
+     * @param address Output parameter for peer IP address.
+     * @param port Output parameter for peer port.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool getPeerAddress(std::string& address, uint16_t& port) = 0;
+
+    /**
+     * @brief Get the underlying socket file descriptor.
+     * 
+     * @return Socket file descriptor, or -1 if not applicable/available.
+     */
+    virtual int getSocketFd() const = 0;
+
+    /**
+     * @brief Set the socket to non-blocking mode.
+     * 
+     * @param nonBlocking True for non-blocking, false for blocking.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool setNonBlocking(bool nonBlocking) = 0;
+
+    /**
+     * @brief Set the receive timeout for socket operations.
+     * 
+     * @param timeout Timeout duration.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool setReceiveTimeout(const std::chrono::milliseconds& timeout) = 0;
+
+    /**
+     * @brief Set the send timeout for socket operations.
+     * 
+     * @param timeout Timeout duration.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool setSendTimeout(const std::chrono::milliseconds& timeout) = 0;
+
+    /**
+     * @brief Enable/disable TCP keep-alive.
+     * 
+     * @param enable True to enable, false to disable.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool setKeepAlive(bool enable) = 0;
+
+    /**
+     * @brief Enable/disable Nagle's algorithm (TCP_NODELAY).
+     * 
+     * @param enable True to disable Nagle (enable TCP_NODELAY), false otherwise.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool setTcpNoDelay(bool enable) = 0;
+
+    /**
+     * @brief Enable/disable socket address reuse (SO_REUSEADDR).
+     * 
+     * @param enable True to enable, false to disable.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool setReuseAddress(bool enable) = 0;
+
+    /**
+     * @brief Set the socket receive buffer size.
+     * 
+     * @param size Desired buffer size in bytes.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool setReceiveBufferSize(size_t size) = 0;
+
+    /**
+     * @brief Set the socket send buffer size.
+     * 
+     * @param size Desired buffer size in bytes.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool setSendBufferSize(size_t size) = 0;
 
     /**
      * @brief Get the last error message.

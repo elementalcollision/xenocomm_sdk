@@ -1,6 +1,6 @@
 #pragma once
 
-#include "xenocomm/utils/result.h"
+#include "xenocomm/utils/result.hpp"
 #include <chrono>
 #include <cstdint>
 #include <map>
@@ -49,6 +49,19 @@ struct TimeSeriesAnalysis {
 };
 
 /**
+ * @brief Aggregated metrics for a specific time window
+ */
+struct MetricsSummary {
+    double successRate;
+    double averageLatency;
+    double throughputBytesPerSecond;
+    double errorRate;
+    uint32_t totalTransactions;
+    std::chrono::system_clock::time_point windowStart;
+    std::chrono::system_clock::time_point windowEnd;
+};
+
+/**
  * @brief Detailed performance metrics for a time window
  */
 struct DetailedMetrics {
@@ -71,19 +84,6 @@ struct DetailedMetrics {
     TimeSeriesAnalysis latencyTrend;
     TimeSeriesAnalysis throughputTrend;
     TimeSeriesAnalysis errorRateTrend;
-};
-
-/**
- * @brief Aggregated metrics for a specific time window
- */
-struct MetricsSummary {
-    double successRate;
-    double averageLatency;
-    double throughputBytesPerSecond;
-    double errorRate;
-    uint32_t totalTransactions;
-    std::chrono::system_clock::time_point windowStart;
-    std::chrono::system_clock::time_point windowEnd;
 };
 
 /**

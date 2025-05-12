@@ -850,5 +850,142 @@ void UDPTransport::stopHealthMonitor() {
     }
 }
 
+bool UDPTransport::getPeerAddress(std::string& address, uint16_t& port) {
+    // For UDP, if connected, remoteAddr_ holds the peer info.
+    // This basic implementation doesn't store it persistently if not 'connected'.
+    if (!isConnected() || socket_ == INVALID_SOCKET_VALUE) {
+        setError(TransportError::NOT_CONNECTED, "Not connected or socket invalid.");
+        return false;
+    }
+    char ipstr[INET_ADDRSTRLEN];
+    if (inet_ntop(AF_INET, &remoteAddr_.sin_addr, ipstr, sizeof(ipstr)) == nullptr) {
+        setError(TransportError::SYSTEM_ERROR, "Failed to convert peer IP address.");
+        return false;
+    }
+    address = ipstr;
+    port = ntohs(remoteAddr_.sin_port);
+    return true;
+}
+
+int UDPTransport::getSocketFd() const {
+    return socket_;
+}
+
+#ifndef _WIN32 // SO_REUSEADDR and other socket options are typically POSIX
+
+bool UDPTransport::setNonBlocking(bool nonBlocking) {
+    if (socket_ == INVALID_SOCKET_VALUE) return false;
+    int flags = fcntl(socket_, F_GETFL, 0);
+    if (flags == -1) return false;
+    flags = nonBlocking ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
+    return (fcntl(socket_, F_SETFL, flags) == 0);
+}
+
+bool UDPTransport::setReuseAddress(bool enable) {
+    if (socket_ == INVALID_SOCKET_VALUE) return false;
+    int optval = enable ? 1 : 0;
+    return (setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == 0);
+}
+
+bool UDPTransport::setKeepAlive(bool enable) {
+    if (socket_ == INVALID_SOCKET_VALUE) return false;
+    // UDP doesn't have keep-alive in the same way TCP does.
+    // This could be implemented with application-level pings if necessary.
+    // For now, this is a no-op but returns true to indicate the call was 'successful'.
+    (void)enable; // Suppress unused parameter warning
+    return true; 
+}
+
+bool UDPTransport::setTcpNoDelay(bool enable) {
+    // Nagle's algorithm is TCP-specific.
+    (void)enable; // Suppress unused parameter warning
+    return true; // No-op for UDP
+}
+
+#else // Windows specific implementations or stubs
+
+bool UDPTransport::setNonBlocking(bool nonBlocking) {
+    if (socket_ == INVALID_SOCKET_VALUE) return false;
+    u_long mode = nonBlocking ? 1 : 0;
+    return (ioctlsocket(socket_, FIONBIO, &mode) == 0);
+}
+
+bool UDPTransport::setReuseAddress(bool enable) {
+    if (socket_ == INVALID_SOCKET_VALUE) return false;
+    int optval = enable ? 1 : 0;
+    return (setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&optval), sizeof(optval)) == 0);
+}
+
+bool UDPTransport::setKeepAlive(bool enable) {
+    (void)enable;
+    return true; // No-op for UDP on Windows as well, typically
+}
+
+bool UDPTransport::setTcpNoDelay(bool enable) {
+    (void)enable;
+    return true; // No-op for UDP
+}
+
+#endif
+
+bool UDPTransport::setReceiveTimeout(const std::chrono::milliseconds& timeout) {
+    if (socket_ == INVALID_SOCKET_VALUE) return false;
+    timeout_ = timeout; // Store for internal use if needed
+#ifdef _WIN32
+    DWORD timeoutMs = static_cast<DWORD>(timeout.count());
+    return (setsockopt(socket_, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeoutMs), sizeof(timeoutMs)) == 0);
+#else
+    struct timeval tv;
+    tv.tv_sec = timeout.count() / 1000;
+    tv.tv_usec = (timeout.count() % 1000) * 1000;
+    return (setsockopt(socket_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == 0);
+#endif
+}
+
+bool UDPTransport::setSendTimeout(const std::chrono::milliseconds& timeout) {
+    if (socket_ == INVALID_SOCKET_VALUE) return false;
+    // timeout_ member is used for general purposes, can be updated here if logic requires it for sending
+#ifdef _WIN32
+    DWORD timeoutMs = static_cast<DWORD>(timeout.count());
+    return (setsockopt(socket_, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeoutMs), sizeof(timeoutMs)) == 0);
+#else
+    struct timeval tv;
+    tv.tv_sec = timeout.count() / 1000;
+    tv.tv_usec = (timeout.count() % 1000) * 1000;
+    return (setsockopt(socket_, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) == 0);
+#endif
+}
+
+bool UDPTransport::setReceiveBufferSize(size_t size) {
+    if (socket_ == INVALID_SOCKET_VALUE) return false;
+    int optval = static_cast<int>(size);
+#ifdef _WIN32
+    return (setsockopt(socket_, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&optval), sizeof(optval)) == 0);
+#else
+    return (setsockopt(socket_, SOL_SOCKET, SO_RCVBUF, &optval, sizeof(optval)) == 0);
+#endif
+}
+
+bool UDPTransport::setSendBufferSize(size_t size) {
+    if (socket_ == INVALID_SOCKET_VALUE) return false;
+    int optval = static_cast<int>(size);
+#ifdef _WIN32
+    return (setsockopt(socket_, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<const char*>(&optval), sizeof(optval)) == 0);
+#else
+    return (setsockopt(socket_, SOL_SOCKET, SO_SNDBUF, &optval, sizeof(optval)) == 0);
+#endif
+}
+
+void UDPTransport::setError(TransportError code, const std::string& message) {
+    std::lock_guard<std::mutex> lock(callbackMutex_);
+    lastErrorCode_ = code;
+    lastError_ = message;
+    lastErrorDetails_ = message;
+    
+    if (errorCallback_) {
+        errorCallback_(code, message);
+    }
+}
+
 } // namespace core
 } // namespace xenocomm 

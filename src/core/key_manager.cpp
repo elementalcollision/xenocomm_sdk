@@ -4,6 +4,10 @@
 #include <openssl/err.h>
 #include <openssl/dh.h>
 #include <openssl/ec.h>
+#include <openssl/bio.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/ssl.h>
 #include <sstream>
 #include <iomanip>
 #include <mutex>
@@ -64,30 +68,32 @@ void KeyManagerImpl::cleanupOpenSSL() {
 Result<std::vector<uint8_t>> KeyManagerImpl::generateSymmetricKey(size_t keySize) {
     std::vector<uint8_t> key(keySize / 8);
     if (RAND_bytes(key.data(), key.size()) != 1) {
-        return Result<std::vector<uint8_t>>::Error("Failed to generate symmetric key");
+        return Result<std::vector<uint8_t>>(std::string("Failed to generate symmetric key"));
     }
-    return Result<std::vector<uint8_t>>::Ok(std::move(key));
+    return Result<std::vector<uint8_t>>(std::move(key));
 }
 
 Result<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>> 
 KeyManagerImpl::generateAsymmetricKeyPair(size_t keySize) {
+    (void)keySize; // Suppress unused parameter warning
+    
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, nullptr);
     if (!ctx) {
-        return Result<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>::Error(
-            "Failed to create key generation context");
+        return Result<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>(
+            std::string("Failed to create key generation context"));
     }
 
     if (EVP_PKEY_keygen_init(ctx) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        return Result<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>::Error(
-            "Failed to initialize key generation");
+        return Result<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>(
+            std::string("Failed to initialize key generation"));
     }
 
     EVP_PKEY* key = nullptr;
     if (EVP_PKEY_keygen(ctx, &key) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        return Result<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>::Error(
-            "Failed to generate key pair");
+        return Result<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>(
+            std::string("Failed to generate key pair"));
     }
 
     // Extract public and private keys
@@ -110,7 +116,7 @@ KeyManagerImpl::generateAsymmetricKeyPair(size_t keySize) {
     EVP_PKEY_free(key);
     EVP_PKEY_CTX_free(ctx);
 
-    return Result<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>::Ok(
+    return Result<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>(
         std::make_pair(std::move(publicKey), std::move(privateKey)));
 }
 
@@ -123,8 +129,7 @@ Result<std::vector<uint8_t>> KeyManagerImpl::performDHKeyExchange(
     EVP_PKEY_CTX* ctx = nullptr;
     unsigned char* secret = nullptr;
     size_t secretLen;
-    Result<std::vector<uint8_t>> result = Result<std::vector<uint8_t>>::Error(
-        "DH key exchange failed");
+    Result<std::vector<uint8_t>> result(std::string("DH key exchange failed"));
 
     do {
         // Generate DH parameters
@@ -140,8 +145,12 @@ Result<std::vector<uint8_t>> KeyManagerImpl::performDHKeyExchange(
         if (EVP_PKEY_keygen(ctx, &privKey) <= 0) break;
 
         // Load peer's public key
-        BIO* peerBio = BIO_new_mem_buf(peerPublicKey.data(), peerPublicKey.size());
-        peerKey = PEM_read_bio_PUBKEY(peerBio, nullptr, nullptr, nullptr);
+        BIO* peerBio = BIO_new_mem_buf(peerPublicKey.data(), static_cast<int>(peerPublicKey.size()));
+        if (!peerBio) break;
+        
+        // The correct way to use PEM_read_bio_* functions is to pass NULL for the second arg if we want a new object
+        peerKey = nullptr;
+        peerKey = PEM_read_bio_PUBKEY(peerBio, &peerKey, nullptr, nullptr);
         BIO_free(peerBio);
         if (!peerKey) break;
 
@@ -158,7 +167,7 @@ Result<std::vector<uint8_t>> KeyManagerImpl::performDHKeyExchange(
         if (EVP_PKEY_derive(ctx, secret, &secretLen) <= 0) break;
 
         // Success - create result
-        result = Result<std::vector<uint8_t>>::Ok(
+        result = Result<std::vector<uint8_t>>(
             std::vector<uint8_t>(secret, secret + secretLen));
         
     } while (false);
@@ -181,8 +190,7 @@ Result<std::vector<uint8_t>> KeyManagerImpl::performECDHKeyExchange(
     EVP_PKEY_CTX* ctx = nullptr;
     unsigned char* secret = nullptr;
     size_t secretLen;
-    Result<std::vector<uint8_t>> result = Result<std::vector<uint8_t>>::Error(
-        "ECDH key exchange failed");
+    Result<std::vector<uint8_t>> result(std::string("ECDH key exchange failed"));
 
     do {
         // Generate EC key pair
@@ -193,8 +201,12 @@ Result<std::vector<uint8_t>> KeyManagerImpl::performECDHKeyExchange(
         if (EVP_PKEY_keygen(ctx, &privKey) <= 0) break;
 
         // Load peer's public key
-        BIO* peerBio = BIO_new_mem_buf(peerPublicKey.data(), peerPublicKey.size());
-        peerKey = PEM_read_bio_PUBKEY(peerBio, nullptr, nullptr, nullptr);
+        BIO* peerBio = BIO_new_mem_buf(peerPublicKey.data(), static_cast<int>(peerPublicKey.size()));
+        if (!peerBio) break;
+        
+        // The correct way to use PEM_read_bio_* functions is to pass NULL for the second arg if we want a new object
+        peerKey = nullptr;
+        peerKey = PEM_read_bio_PUBKEY(peerBio, &peerKey, nullptr, nullptr);
         BIO_free(peerBio);
         if (!peerKey) break;
 
@@ -211,7 +223,7 @@ Result<std::vector<uint8_t>> KeyManagerImpl::performECDHKeyExchange(
         if (EVP_PKEY_derive(ctx, secret, &secretLen) <= 0) break;
 
         // Success - create result
-        result = Result<std::vector<uint8_t>>::Ok(
+        result = Result<std::vector<uint8_t>>(
             std::vector<uint8_t>(secret, secret + secretLen));
         
     } while (false);
@@ -233,8 +245,8 @@ KeyManager::KeyManager(const SecurityConfig& config)
 
 Result<KeyData> KeyManager::generateKey(const KeyGenParams& params) {
     auto validationResult = validateKeyParams(params);
-    if (!validationResult.isOk()) {
-        return Result<KeyData>::Error(validationResult.error());
+    if (validationResult.has_error()) {
+        return Result<KeyData>(validationResult.error());
     }
 
     KeyData keyData;
@@ -246,14 +258,14 @@ Result<KeyData> KeyManager::generateKey(const KeyGenParams& params) {
 
     if (params.type == KeyType::SYMMETRIC) {
         auto result = impl_->generateSymmetricKey(params.keySize);
-        if (!result.isOk()) {
-            return Result<KeyData>::Error(result.error());
+        if (result.has_error()) {
+            return Result<KeyData>(result.error());
         }
         keyData.keyMaterial = std::move(result.value());
     } else {
         auto result = impl_->generateAsymmetricKeyPair(params.keySize);
-        if (!result.isOk()) {
-            return Result<KeyData>::Error(result.error());
+        if (result.has_error()) {
+            return Result<KeyData>(result.error());
         }
         if (params.type == KeyType::ASYMMETRIC_PUB) {
             keyData.keyMaterial = std::move(result.value().first);
@@ -263,11 +275,11 @@ Result<KeyData> KeyManager::generateKey(const KeyGenParams& params) {
     }
 
     auto storeResult = storeKey(keyData);
-    if (!storeResult.isOk()) {
-        return Result<KeyData>::Error(storeResult.error());
+    if (storeResult.has_error()) {
+        return Result<KeyData>(storeResult.error());
     }
 
-    return Result<KeyData>::Ok(std::move(keyData));
+    return Result<KeyData>(std::move(keyData));
 }
 
 Result<KeyExchangeResult> KeyManager::initiateKeyExchange(const KeyExchangeParams& params) {
@@ -280,14 +292,14 @@ Result<KeyExchangeResult> KeyManager::initiateKeyExchange(const KeyExchangeParam
     };
 
     auto keyResult = generateKey(keyParams);
-    if (!keyResult.isOk()) {
-        return Result<KeyExchangeResult>::Error(keyResult.error());
+    if (!keyResult.has_value()) {
+        return Result<KeyExchangeResult>(keyResult.error());
     }
 
     // Perform key exchange using ECDH
     auto exchangeResult = impl_->performECDHKeyExchange(keyResult.value().keyMaterial);
-    if (!exchangeResult.isOk()) {
-        return Result<KeyExchangeResult>::Error(exchangeResult.error());
+    if (!exchangeResult.has_value()) {
+        return Result<KeyExchangeResult>(exchangeResult.error());
     }
 
     // Create and store the shared key
@@ -300,8 +312,8 @@ Result<KeyExchangeResult> KeyManager::initiateKeyExchange(const KeyExchangeParam
     sharedKeyData.purpose = std::string("Shared key with ") + params.peerId;
 
     auto storeResult = storeKey(sharedKeyData);
-    if (!storeResult.isOk()) {
-        return Result<KeyExchangeResult>::Error(storeResult.error());
+    if (!storeResult.has_value()) {
+        return Result<KeyExchangeResult>(storeResult.error());
     }
 
     KeyExchangeResult result{
@@ -310,29 +322,29 @@ Result<KeyExchangeResult> KeyManager::initiateKeyExchange(const KeyExchangeParam
         params.peerId
     };
 
-    return Result<KeyExchangeResult>::Ok(std::move(result));
+    return Result<KeyExchangeResult>(std::move(result));
 }
 
 Result<KeyExchangeResult> KeyManager::respondToKeyExchange(
     const std::string& exchangeId, bool accept) {
     if (!accept) {
-        return Result<KeyExchangeResult>::Error("Key exchange rejected");
+        return Result<KeyExchangeResult>(std::string("Key exchange rejected"));
     }
 
     auto keyResult = getKey(exchangeId);
-    if (!keyResult.isOk()) {
-        return Result<KeyExchangeResult>::Error(keyResult.error());
+    if (!keyResult.has_value()) {
+        return Result<KeyExchangeResult>(keyResult.error());
     }
 
     // Verify the key is valid for exchange
     if (keyResult.value().type != KeyType::ASYMMETRIC_PUB) {
-        return Result<KeyExchangeResult>::Error("Invalid key type for exchange");
+        return Result<KeyExchangeResult>(std::string("Invalid key type for exchange"));
     }
 
     // Perform ECDH key exchange
     auto exchangeResult = impl_->performECDHKeyExchange(keyResult.value().keyMaterial);
-    if (!exchangeResult.isOk()) {
-        return Result<KeyExchangeResult>::Error(exchangeResult.error());
+    if (!exchangeResult.has_value()) {
+        return Result<KeyExchangeResult>(exchangeResult.error());
     }
 
     // Create and store the shared key
@@ -345,8 +357,8 @@ Result<KeyExchangeResult> KeyManager::respondToKeyExchange(
     sharedKeyData.purpose = "Shared key from exchange " + exchangeId;
 
     auto storeResult = storeKey(sharedKeyData);
-    if (!storeResult.isOk()) {
-        return Result<KeyExchangeResult>::Error(storeResult.error());
+    if (!storeResult.has_value()) {
+        return Result<KeyExchangeResult>(storeResult.error());
     }
 
     KeyExchangeResult result{
@@ -355,7 +367,7 @@ Result<KeyExchangeResult> KeyManager::respondToKeyExchange(
         exchangeId
     };
 
-    return Result<KeyExchangeResult>::Ok(std::move(result));
+    return Result<KeyExchangeResult>(std::move(result));
 }
 
 Result<KeyData> KeyManager::rotateKey(const std::string& keyId, const KeyGenParams& params) {
@@ -363,12 +375,12 @@ Result<KeyData> KeyManager::rotateKey(const std::string& keyId, const KeyGenPara
     
     auto it = keyStore_.find(keyId);
     if (it == keyStore_.end()) {
-        return Result<KeyData>::Error("Key not found");
+        return Result<KeyData>(std::string("Key not found"));
     }
 
     // Generate new key
     auto newKeyResult = generateKey(params);
-    if (!newKeyResult.isOk()) {
+    if (!newKeyResult.has_value()) {
         return newKeyResult;
     }
 
@@ -384,7 +396,7 @@ Result<void> KeyManager::revokeKey(const std::string& keyId,
     
     auto it = keyStore_.find(keyId);
     if (it == keyStore_.end()) {
-        return Result<void>::Error("Key not found");
+        return Result<void>(std::string("Key not found"));
     }
 
     it->second.isRevoked = true;
@@ -393,7 +405,7 @@ Result<void> KeyManager::revokeKey(const std::string& keyId,
         it->second.purpose = *reason;
     }
 
-    return Result<void>::Ok();
+    return Result<void>(std::string("Key revoked"));
 }
 
 Result<KeyData> KeyManager::getKey(const std::string& keyId) const {
@@ -401,18 +413,18 @@ Result<KeyData> KeyManager::getKey(const std::string& keyId) const {
     
     auto it = keyStore_.find(keyId);
     if (it == keyStore_.end()) {
-        return Result<KeyData>::Error("Key not found");
+        return Result<KeyData>(std::string("Key not found"));
     }
 
     if (it->second.isRevoked) {
-        return Result<KeyData>::Error("Key is revoked");
+        return Result<KeyData>(std::string("Key is revoked"));
     }
 
     if (it->second.expiryTime <= std::chrono::system_clock::now()) {
-        return Result<KeyData>::Error("Key is expired");
+        return Result<KeyData>(std::string("Key is expired"));
     }
 
-    return Result<KeyData>::Ok(it->second);
+    return Result<KeyData>(it->second);
 }
 
 std::vector<KeyData> KeyManager::listActiveKeys() const {
@@ -431,24 +443,24 @@ std::vector<KeyData> KeyManager::listActiveKeys() const {
 
 Result<bool> KeyManager::verifyKey(const std::string& keyId) const {
     auto keyResult = getKey(keyId);
-    if (!keyResult.isOk()) {
-        return Result<bool>::Ok(false);
+    if (!keyResult.has_value()) {
+        return Result<bool>(false);
     }
 
     // Additional verification could be added here
-    return Result<bool>::Ok(true);
+    return Result<bool>(true);
 }
 
 Result<std::vector<uint8_t>> KeyManager::exportKey(
     const std::string& keyId, const std::string& format) const {
     auto keyResult = getKey(keyId);
-    if (!keyResult.isOk()) {
-        return Result<std::vector<uint8_t>>::Error(keyResult.error());
+    if (!keyResult.has_value()) {
+        return Result<std::vector<uint8_t>>(keyResult.error());
     }
 
     // For now, just return the raw key material
     // In a real implementation, we would format according to the requested format
-    return Result<std::vector<uint8_t>>::Ok(keyResult.value().keyMaterial);
+    return Result<std::vector<uint8_t>>(keyResult.value().keyMaterial);
 }
 
 Result<KeyData> KeyManager::importKey(
@@ -464,11 +476,11 @@ Result<KeyData> KeyManager::importKey(
     key.keyMaterial = keyData;
 
     auto result = storeKey(key);
-    if (!result.isOk()) {
-        return Result<KeyData>::Error(result.error());
+    if (!result.has_value()) {
+        return Result<KeyData>(result.error());
     }
 
-    return Result<KeyData>::Ok(std::move(key));
+    return Result<KeyData>(std::move(key));
 }
 
 std::string KeyManager::generateKeyId() const {
@@ -483,34 +495,34 @@ std::string KeyManager::generateKeyId() const {
 
 Result<void> KeyManager::validateKeyParams(const KeyGenParams& params) const {
     if (params.keySize == 0) {
-        return Result<void>::Error("Key size cannot be zero");
+        return Result<void>(std::string("Key size cannot be zero"));
     }
 
     if (params.validity.count() <= 0) {
-        return Result<void>::Error("Key validity period must be positive");
+        return Result<void>(std::string("Key validity period must be positive"));
     }
 
     switch (params.type) {
         case KeyType::SYMMETRIC:
             if (params.keySize != 128 && params.keySize != 192 && params.keySize != 256) {
-                return Result<void>::Error("Invalid symmetric key size");
+                return Result<void>(std::string("Invalid symmetric key size"));
             }
             break;
         case KeyType::ASYMMETRIC_PUB:
         case KeyType::ASYMMETRIC_PRIV:
             if (params.keySize < 2048) {
-                return Result<void>::Error("Asymmetric key size must be at least 2048 bits");
+                return Result<void>(std::string("Asymmetric key size must be at least 2048 bits"));
             }
             break;
     }
 
-    return Result<void>::Ok();
+    return Result<void>(std::string("Key parameters are valid"));
 }
 
 Result<void> KeyManager::storeKey(const KeyData& keyData) {
     std::lock_guard<std::mutex> lock(keyStoreMutex_);
     keyStore_[keyData.keyId] = keyData;
-    return Result<void>::Ok();
+    return Result<void>(std::string("Key stored successfully"));
 }
 
 void KeyManager::cleanupKeys() {

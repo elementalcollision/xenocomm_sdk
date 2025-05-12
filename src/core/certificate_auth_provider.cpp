@@ -12,14 +12,37 @@ namespace core {
 namespace {
     // Helper function to convert OpenSSL errors to string
     std::string getOpenSSLError() {
-        std::stringstream ss;
-        unsigned long err;
-        while ((err = ERR_get_error()) != 0) {
-            char buf[256];
-            ERR_error_string_n(err, buf, sizeof(buf));
-            ss << buf << "; ";
+        BIO* bio = BIO_new(BIO_s_mem());
+        ERR_print_errors(bio);
+        char* buf;
+        size_t len = BIO_get_mem_data(bio, &buf);
+        std::string errorMsg(buf, len);
+        BIO_free(bio);
+        return errorMsg;
+    }
+
+    // Helper to convert ASN1_TIME to time_t
+    // OpenSSL 3.x removed ASN1_TIME_to_time_t, so we need our own implementation
+    time_t asn1TimeToTimeT(const ASN1_TIME* asn1Time) {
+        int days = 0;
+        int seconds = 0;
+        
+        // Get difference between ASN1_TIME and current time
+        auto now = std::chrono::system_clock::now();
+        auto nowTimeT = std::chrono::system_clock::to_time_t(now);
+        struct tm* nowTm = gmtime(&nowTimeT);
+        ASN1_TIME* nowAsn1 = ASN1_TIME_set(nullptr, nowTimeT);
+        
+        // Calculate difference
+        if (!ASN1_TIME_diff(&days, &seconds, nowAsn1, asn1Time)) {
+            ASN1_TIME_free(nowAsn1);
+            return 0; // Error
         }
-        return ss.str();
+        
+        ASN1_TIME_free(nowAsn1);
+        
+        // Convert difference to time_t
+        return nowTimeT + days * 24 * 60 * 60 + seconds;
     }
 
     // Helper to check certificate validity period
@@ -31,9 +54,8 @@ namespace {
         auto now = std::chrono::system_clock::now();
         auto nowTime = std::chrono::system_clock::to_time_t(now);
         
-        time_t notBeforeTime, notAfterTime;
-        ASN1_TIME_to_time_t(notBefore, &notBeforeTime);
-        ASN1_TIME_to_time_t(notAfter, &notAfterTime);
+        time_t notBeforeTime = asn1TimeToTimeT(notBefore);
+        time_t notAfterTime = asn1TimeToTimeT(notAfter);
         
         // Check if certificate is currently valid
         if (nowTime < notBeforeTime || nowTime > notAfterTime) {
