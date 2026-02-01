@@ -2,21 +2,53 @@
 
 A high-performance communication framework enabling AI agents to communicate over IP networks with maximum computational efficiency.
 
+**Now with MCP Protocol Bridge** — Bring XenoComm's coordination capabilities to Claude Code, Moltbot/OpenClaw, Cursor, and any MCP-compatible client.
+
 ## Overview
 
 XenoComm SDK is designed to provide a low-latency, resource-efficient communication layer for AI agents running in cloud environments. The framework prioritizes machine-optimized interaction over human readability, enabling the potential emergence of adaptive, machine-optimized communication protocols.
 
+## 🚀 Quick Start: MCP Server
+
+The fastest way to use XenoComm is via the MCP (Model Context Protocol) server:
+
+```bash
+# Install
+pip install xenocomm-mcp
+
+# Run (stdio for Claude Code, etc.)
+xenocomm-mcp
+
+# Or HTTP transport
+xenocomm-mcp --http --port 8000
+```
+
+Add to your Claude Code config:
+```json
+{
+  "mcpServers": {
+    "xenocomm": {
+      "command": "xenocomm-mcp"
+    }
+  }
+}
+```
+
+See the [MCP Server documentation](mcp_server/README.md) for full details.
+
 ## Key Features
 
+- **🔌 MCP Protocol Bridge**: Expose coordination capabilities to the agentic AI ecosystem (Claude Code, Moltbot, Cursor)
+- **🤝 Agent Alignment Verification**: 5 formal strategies (knowledge, goals, terminology, assumptions, context) for establishing mutual understanding
+- **📋 Dynamic Protocol Negotiation**: State machine for agents to agree on communication parameters
+- **🧬 Protocol Evolution**: EmergenceManager with canary deployments, circuit breakers, and safe rollback
 - **Optimized Network Connections**: Direct TCP/UDP streams with connection pooling and async I/O support
 - **Efficient Capability Discovery**: Binary-optimized capability representation with fast indexing and caching
-- **Dynamic Protocol Negotiation**: Adaptive selection of communication parameters with fallback mechanisms
 - **Direct Data Representation**: Multiple optimized encoding formats including VECTOR_FLOAT32, VECTOR_INT8, and GGWAVE_FSK
 - **Robust Error Handling**: Configurable error detection, recovery strategies, and retry logic
 - **Feedback-Driven Optimization**: Built-in performance monitoring and protocol adaptation
-- **Protocol Evolution**: EmergenceManager for autonomous protocol variant management with safety guarantees
 - **Security First**: Integrated encryption and authentication with minimal overhead
-- **Language Support**: Core C++ implementation with Python bindings
+- **Language Support**: Core C++ implementation with Python bindings and MCP server
 - **Data Translation & Validation**: Built-in TranslationService for JSON/XML serialization, schema validation, template formatting, and type mapping (Python)
 
 ## Getting Started
@@ -33,7 +65,7 @@ XenoComm SDK is designed to provide a low-latency, resource-efficient communicat
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/xenocomm_sdk.git
+git clone https://github.com/elementalcollision/xenocomm_sdk.git
 cd xenocomm_sdk
 
 # Configure with CMake
@@ -154,8 +186,80 @@ auto result = harness.runTest();
 
 For more details, see the [Doxygen API documentation](docs/api/README.md#extensibility-subsystem).
 
+## MCP Protocol Bridge
+
+The XenoComm MCP Server exposes 22 tools for agent-to-agent coordination, compatible with any MCP client.
+
+### Alignment Tools
+
+Verify that two agents can effectively collaborate:
+
+```python
+# Register agents with their context
+register_agent(
+    agent_id="researcher",
+    knowledge_domains=["python", "machine_learning"],
+    goals=[{"type": "analysis", "description": "Analyze data"}],
+    terminology={"model": "trained neural network"},
+    assumptions=["GPU available"],
+    context_params={"environment": "research"}
+)
+
+# Run comprehensive alignment check
+result = full_alignment_check("researcher", "writer")
+# Returns: overall_status, confidence, and recommendations
+```
+
+**Available alignment tools:**
+- `verify_knowledge_alignment` - Check shared knowledge domains
+- `verify_goal_alignment` - Check goal compatibility
+- `align_terminology` - Ensure consistent term definitions
+- `verify_assumptions` - Surface conflicting assumptions
+- `sync_context` - Align environmental parameters
+
+### Negotiation Tools
+
+Dynamic protocol negotiation between agents:
+
+```python
+# Agent A initiates
+session = initiate_negotiation("agent-a", "agent-b", {
+    "data_format": "json",
+    "compression": "gzip"
+})
+
+# Agent B counters
+respond_to_negotiation(session_id, "agent-b", "counter", {
+    "data_format": "msgpack"
+})
+
+# Agent A accepts and finalizes
+accept_counter_proposal(session_id, "agent-a")
+finalize_negotiation(session_id, "agent-a")
+```
+
+### Emergence Tools
+
+Safe protocol evolution with canary deployments:
+
+```python
+# Propose a variant
+variant = propose_protocol_variant("Add streaming", {"streaming": True})
+
+# Progress through pipeline
+start_variant_testing(variant_id)
+start_canary_deployment(variant_id, initial_percentage=0.1)
+
+# Track metrics and ramp up or rollback
+track_variant_performance(variant_id, success_rate=0.99, latency_ms=15)
+ramp_canary(variant_id)  # Increases traffic percentage
+```
+
+See [mcp_server/README.md](mcp_server/README.md) for complete documentation.
+
 ## Documentation
 
+- **[MCP Server Guide](mcp_server/README.md)** - Get started with the MCP Protocol Bridge
 - [API Reference](docs/api/README.md)
   - [EmergenceManager API](docs/api/emergence_manager.md)
 - [Integration Guide](docs/guides/integration.md)
@@ -175,13 +279,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Project Status
 
-XenoComm SDK is currently in active development. Core features including ConnectionManager, CapabilitySignaler, NegotiationProtocol, DataTranscoder, and EmergenceManager are implemented and tested. The API may undergo minor changes as we work towards a stable release.
+XenoComm SDK is currently in active development.
+
+**v2.0** introduces the MCP Protocol Bridge, bringing XenoComm's coordination capabilities to the agentic AI ecosystem. The MCP server exposes alignment verification, protocol negotiation, and emergence tools compatible with Claude Code, Moltbot/OpenClaw, Cursor, and other MCP clients.
+
+Core features including ConnectionManager, CapabilitySignaler, NegotiationProtocol, DataTranscoder, EmergenceManager, and the new MCP server are implemented and tested.
 
 ## Contact
 
 For questions and support:
-- [GitHub Issues](https://github.com/yourusername/xenocomm_sdk/issues)
-- [Discussions](https://github.com/yourusername/xenocomm_sdk/discussions)
+- [GitHub Issues](https://github.com/elementalcollision/xenocomm_sdk/issues)
+- [Discussions](https://github.com/elementalcollision/xenocomm_sdk/discussions)
 
 ## Data Translation & Validation (Python)
 
