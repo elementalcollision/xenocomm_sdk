@@ -9,11 +9,12 @@ This server exposes XenoComm's alignment, negotiation, and emergence capabilitie
 as MCP tools that can be used by any MCP-compatible client (Claude Code, Moltbot,
 Cursor, etc.).
 
-Key Features:
-- Alignment verification between heterogeneous agents
-- Protocol negotiation state machine
-- Emergence/evolution of communication protocols
-- Capability discovery and matching
+Key Features (v2.0):
+- Alignment verification with weighted strategy scoring
+- Protocol negotiation with analytics and auto-resolution
+- Emergence/evolution with A/B testing and learning
+- Orchestration layer for coordinated workflows
+- Pre-built workflows for common scenarios
 
 Usage:
     # Run as stdio server (for Claude Code, etc.)
@@ -24,9 +25,40 @@ Usage:
 """
 
 # Core engines (no external dependencies)
-from .alignment import AlignmentEngine, AgentContext, AlignmentResult, AlignmentStatus
-from .negotiation import NegotiationEngine, NegotiableParams, NegotiationSession, NegotiationState
-from .emergence import EmergenceEngine, ProtocolVariant, PerformanceMetrics, VariantStatus
+from .alignment import (
+    AlignmentEngine,
+    AgentContext,
+    AlignmentResult,
+    AlignmentStatus,
+    StrategyWeight,
+)
+from .negotiation import (
+    NegotiationEngine,
+    NegotiableParams,
+    NegotiationSession,
+    NegotiationState,
+    NegotiationConfig,
+    NegotiationAnalytics,
+)
+from .emergence import (
+    EmergenceEngine,
+    EmergenceConfig,
+    ProtocolVariant,
+    PerformanceMetrics,
+    VariantStatus,
+    MetricTrend,
+    ABTestExperiment,
+)
+from .orchestrator import (
+    XenoCommOrchestrator,
+    OrchestratorConfig,
+    CollaborationSession,
+)
+from .workflows import (
+    WorkflowManager,
+    WorkflowExecution,
+    WorkflowStatus,
+)
 
 __version__ = "2.0.0"
 __all__ = [
@@ -35,16 +67,30 @@ __all__ = [
     "AgentContext",
     "AlignmentResult",
     "AlignmentStatus",
+    "StrategyWeight",
     # Negotiation
     "NegotiationEngine",
     "NegotiableParams",
     "NegotiationSession",
     "NegotiationState",
+    "NegotiationConfig",
+    "NegotiationAnalytics",
     # Emergence
     "EmergenceEngine",
+    "EmergenceConfig",
     "ProtocolVariant",
     "PerformanceMetrics",
     "VariantStatus",
+    "MetricTrend",
+    "ABTestExperiment",
+    # Orchestration
+    "XenoCommOrchestrator",
+    "OrchestratorConfig",
+    "CollaborationSession",
+    # Workflows
+    "WorkflowManager",
+    "WorkflowExecution",
+    "WorkflowStatus",
 ]
 
 

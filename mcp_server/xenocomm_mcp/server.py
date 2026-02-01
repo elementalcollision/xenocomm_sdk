@@ -5,6 +5,12 @@ XenoComm MCP Server
 The main MCP server that exposes XenoComm's alignment, negotiation, and
 emergence capabilities as MCP tools.
 
+Version 2.0 adds:
+- Orchestration tools for coordinated workflows
+- Enhanced negotiation with analytics and auto-resolution
+- Emergence engine with A/B testing and learning
+- Pre-built workflows for common scenarios
+
 Usage:
     # As a module
     python -m xenocomm_mcp
@@ -17,9 +23,22 @@ Usage:
 from typing import Any
 from mcp.server.fastmcp import FastMCP
 
-from .alignment import AlignmentEngine, AgentContext, AlignmentResult
-from .negotiation import NegotiationEngine, NegotiableParams, NegotiationState
-from .emergence import EmergenceEngine, PerformanceMetrics, VariantStatus
+from .alignment import AlignmentEngine, AgentContext, AlignmentResult, StrategyWeight
+from .negotiation import (
+    NegotiationEngine,
+    NegotiableParams,
+    NegotiationState,
+    NegotiationConfig,
+)
+from .emergence import (
+    EmergenceEngine,
+    EmergenceConfig,
+    PerformanceMetrics,
+    VariantStatus,
+    RollbackReason,
+)
+from .orchestrator import XenoCommOrchestrator, OrchestratorConfig
+from .workflows import WorkflowManager
 
 
 # Initialize the MCP server
@@ -28,10 +47,14 @@ mcp = FastMCP(
     json_response=True,
 )
 
-# Initialize engines (shared state across tool calls)
-alignment_engine = AlignmentEngine()
-negotiation_engine = NegotiationEngine()
-emergence_engine = EmergenceEngine()
+# Initialize the orchestrator (which manages all engines)
+orchestrator = XenoCommOrchestrator()
+workflow_manager = WorkflowManager(orchestrator)
+
+# Keep references for backward compatibility
+alignment_engine = orchestrator.alignment
+negotiation_engine = orchestrator.negotiation
+emergence_engine = orchestrator.emergence
 
 
 # =============================================================================
@@ -675,6 +698,598 @@ def get_canary_status() -> dict[str, Any]:
         Active canaries and current active variant
     """
     return emergence_engine.get_canary_status()
+
+
+# =============================================================================
+# ENHANCED NEGOTIATION TOOLS (v2.0)
+# =============================================================================
+
+@mcp.tool()
+def get_negotiation_analytics(
+    agent_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Get negotiation analytics and statistics.
+
+    Args:
+        agent_id: Optional filter by agent involvement
+
+    Returns:
+        Analytics including success rates, average rounds, and contested params
+    """
+    analytics = negotiation_engine.get_analytics(agent_id)
+    return analytics.to_dict()
+
+
+@mcp.tool()
+def auto_resolve_negotiation_conflicts(
+    session_id: str,
+    prefer_initiator: bool = True,
+) -> dict[str, Any]:
+    """
+    Automatically resolve parameter conflicts in a negotiation.
+
+    Uses compatibility rules to merge parameters from both parties.
+
+    Args:
+        session_id: The negotiation session ID
+        prefer_initiator: Whether to prefer initiator's params in conflicts
+
+    Returns:
+        Resolved parameters that satisfy both parties
+    """
+    resolved = negotiation_engine.auto_resolve_conflicts(session_id, prefer_initiator)
+    return {
+        "resolved_params": resolved.to_dict(),
+        "session_id": session_id,
+    }
+
+
+@mcp.tool()
+def suggest_optimal_negotiation_params(
+    initiator_capabilities: dict[str, Any],
+    responder_capabilities: dict[str, Any],
+    priority: str = "performance",
+) -> dict[str, Any]:
+    """
+    Suggest optimal parameters based on both parties' capabilities.
+
+    Args:
+        initiator_capabilities: What the initiator supports
+        responder_capabilities: What the responder supports
+        priority: Optimization priority - "performance", "compatibility", or "security"
+
+    Returns:
+        Optimized parameter suggestions
+    """
+    params = negotiation_engine.suggest_optimal_params(
+        initiator_capabilities,
+        responder_capabilities,
+        priority,
+    )
+    return {
+        "suggested_params": params.to_dict(),
+        "optimization_priority": priority,
+    }
+
+
+@mcp.tool()
+def check_negotiation_timeout(
+    session_id: str,
+) -> dict[str, Any]:
+    """
+    Check if a negotiation session has timed out.
+
+    Args:
+        session_id: The negotiation session ID
+
+    Returns:
+        Timeout status and session state
+    """
+    timed_out, session = negotiation_engine.check_timeout(session_id)
+    return {
+        "timed_out": timed_out,
+        "session": session.to_dict(),
+        "time_remaining_ms": session.time_remaining_ms(),
+    }
+
+
+@mcp.tool()
+def get_negotiation_history(
+    session_id: str,
+) -> dict[str, Any]:
+    """
+    Get the full negotiation round history for a session.
+
+    Args:
+        session_id: The negotiation session ID
+
+    Returns:
+        List of negotiation rounds with proposals and responses
+    """
+    history = negotiation_engine.get_session_history(session_id)
+    return {
+        "session_id": session_id,
+        "rounds": history,
+        "total_rounds": len(history),
+    }
+
+
+# =============================================================================
+# ENHANCED EMERGENCE TOOLS (v2.0)
+# =============================================================================
+
+@mcp.tool()
+def analyze_variant_trend(
+    variant_id: str,
+    metric: str = "success_rate",
+) -> dict[str, Any]:
+    """
+    Analyze the performance trend for a variant.
+
+    Args:
+        variant_id: ID of the variant
+        metric: Metric to analyze (success_rate, latency_ms, throughput)
+
+    Returns:
+        Trend analysis (improving, stable, degrading, volatile)
+    """
+    trend = emergence_engine.analyze_trend(variant_id, metric)
+    return {
+        "variant_id": variant_id,
+        "metric": metric,
+        "trend": trend.value,
+    }
+
+
+@mcp.tool()
+def detect_variant_anomaly(
+    variant_id: str,
+    metric: str = "success_rate",
+) -> dict[str, Any]:
+    """
+    Detect if the latest metric value is anomalous.
+
+    Args:
+        variant_id: ID of the variant
+        metric: Metric to check
+
+    Returns:
+        Anomaly detection result
+    """
+    is_anomaly = emergence_engine.detect_anomaly(variant_id, metric)
+    return {
+        "variant_id": variant_id,
+        "metric": metric,
+        "anomaly_detected": is_anomaly,
+    }
+
+
+@mcp.tool()
+def start_ab_experiment(
+    control_variant_id: str,
+    treatment_variant_id: str,
+    traffic_split: float = 0.5,
+) -> dict[str, Any]:
+    """
+    Start an A/B test experiment between two variants.
+
+    Args:
+        control_variant_id: ID of the control (baseline) variant
+        treatment_variant_id: ID of the treatment (new) variant
+        traffic_split: Percentage of traffic to treatment (0-1)
+
+    Returns:
+        Created experiment details
+    """
+    experiment = emergence_engine.start_experiment(
+        control_variant_id,
+        treatment_variant_id,
+        traffic_split,
+    )
+    return experiment.to_dict()
+
+
+@mcp.tool()
+def record_ab_experiment_metrics(
+    experiment_id: str,
+    variant_id: str,
+    success_rate: float,
+    latency_ms: float = 0.0,
+    throughput: float = 0.0,
+) -> dict[str, Any]:
+    """
+    Record metrics for an A/B experiment variant.
+
+    Args:
+        experiment_id: ID of the experiment
+        variant_id: ID of the variant (control or treatment)
+        success_rate: Success rate (0-1)
+        latency_ms: Latency in milliseconds
+        throughput: Operations per second
+
+    Returns:
+        Updated experiment status
+    """
+    metrics = PerformanceMetrics(
+        success_rate=success_rate,
+        latency_ms=latency_ms,
+        throughput=throughput,
+    )
+    experiment = emergence_engine.record_experiment_metrics(
+        experiment_id, variant_id, metrics
+    )
+    return emergence_engine.get_experiment_status(experiment_id)
+
+
+@mcp.tool()
+def get_ab_experiment_status(
+    experiment_id: str,
+) -> dict[str, Any]:
+    """
+    Get detailed status of an A/B experiment.
+
+    Args:
+        experiment_id: ID of the experiment
+
+    Returns:
+        Experiment status including winner determination
+    """
+    return emergence_engine.get_experiment_status(experiment_id)
+
+
+@mcp.tool()
+def predict_variant_success(
+    changes: dict[str, Any],
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Predict success likelihood for proposed protocol changes.
+
+    Uses historical outcomes to estimate probability of success.
+
+    Args:
+        changes: Proposed changes to evaluate
+        tags: Optional tags for better prediction
+
+    Returns:
+        Success probability (0-1)
+    """
+    prediction = emergence_engine.predict_success(changes, tags)
+    return {
+        "changes": changes,
+        "predicted_success_probability": prediction,
+        "confidence": "high" if len(emergence_engine.outcomes) > 10 else "low",
+    }
+
+
+@mcp.tool()
+def get_emergence_learning_insights() -> dict[str, Any]:
+    """
+    Get insights learned from historical protocol evolution outcomes.
+
+    Returns:
+        Insights including success rates by tag, risky changes, and safe changes
+    """
+    return emergence_engine.get_learning_insights()
+
+
+# =============================================================================
+# ORCHESTRATION TOOLS (v2.0)
+# =============================================================================
+
+@mcp.tool()
+def initiate_collaboration(
+    agent_a_id: str,
+    agent_b_id: str,
+    proposed_params: dict[str, Any] | None = None,
+    required_alignment_score: float = 0.6,
+) -> dict[str, Any]:
+    """
+    Initiate a full collaboration session between two agents.
+
+    This orchestrates: alignment check -> negotiation -> session establishment.
+
+    Args:
+        agent_a_id: ID of the first agent (must be registered)
+        agent_b_id: ID of the second agent (must be registered)
+        proposed_params: Initial communication parameters
+        required_alignment_score: Minimum alignment score required (0-1)
+
+    Returns:
+        Collaboration session with alignment and negotiation results
+    """
+    session = orchestrator.initiate_collaboration(
+        agent_a_id,
+        agent_b_id,
+        NegotiableParams.from_dict(proposed_params) if proposed_params else None,
+        required_alignment_score,
+    )
+    return session.to_dict()
+
+
+@mcp.tool()
+def get_collaboration_status(
+    session_id: str,
+) -> dict[str, Any]:
+    """
+    Get the status of a collaboration session.
+
+    Args:
+        session_id: The collaboration session ID
+
+    Returns:
+        Current session state and details
+    """
+    session = orchestrator.get_session(session_id)
+    return session.to_dict()
+
+
+@mcp.tool()
+def list_active_collaborations() -> dict[str, Any]:
+    """
+    List all active collaboration sessions.
+
+    Returns:
+        List of active sessions with summary
+    """
+    sessions = orchestrator.list_sessions()
+    return {
+        "sessions": [s.to_dict() for s in sessions],
+        "total": len(sessions),
+    }
+
+
+@mcp.tool()
+def end_collaboration(
+    session_id: str,
+    agent_id: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """
+    End a collaboration session.
+
+    Args:
+        session_id: The collaboration session ID
+        agent_id: ID of the agent ending the session
+        reason: Optional reason for ending
+
+    Returns:
+        Final session state
+    """
+    session = orchestrator.end_session(session_id, agent_id, reason)
+    return session.to_dict()
+
+
+# =============================================================================
+# WORKFLOW TOOLS (v2.0)
+# =============================================================================
+
+@mcp.tool()
+def list_workflow_types() -> dict[str, Any]:
+    """
+    List available workflow types.
+
+    Returns:
+        Available workflows with descriptions
+    """
+    return {
+        "workflows": workflow_manager.list_workflow_types(),
+    }
+
+
+@mcp.tool()
+def start_onboarding_workflow(
+    new_agent_id: str,
+    existing_agent_ids: list[str],
+    knowledge_domains: list[str] | None = None,
+    goals: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """
+    Start a multi-agent onboarding workflow.
+
+    Onboards a new agent with alignment checks and negotiation.
+
+    Args:
+        new_agent_id: ID of the new agent to onboard
+        existing_agent_ids: IDs of existing agents to connect with
+        knowledge_domains: New agent's knowledge domains
+        goals: New agent's goals
+
+    Returns:
+        Workflow execution details
+    """
+    new_agent = AgentContext(
+        agent_id=new_agent_id,
+        knowledge_domains=knowledge_domains or [],
+        goals=goals or [],
+    )
+
+    execution = workflow_manager.onboarding.start(
+        new_agent,
+        existing_agent_ids,
+    )
+    return execution.to_dict()
+
+
+@mcp.tool()
+def start_protocol_evolution_workflow(
+    description: str,
+    changes: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Start a protocol evolution workflow.
+
+    Safely evolves the protocol with testing, canary deployment, and rollback.
+
+    Args:
+        description: Description of the protocol changes
+        changes: Dict of changes to make
+
+    Returns:
+        Workflow execution details
+    """
+    execution = workflow_manager.evolution.start(description, changes)
+    return execution.to_dict()
+
+
+@mcp.tool()
+def start_error_recovery_workflow(
+    error_type: str,
+    affected_agents: list[str],
+    error_details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Start an error recovery workflow.
+
+    Handles errors and recovers gracefully.
+
+    Args:
+        error_type: Type of error (timeout, alignment_failure, protocol_mismatch, etc.)
+        affected_agents: List of affected agent IDs
+        error_details: Additional error information
+
+    Returns:
+        Workflow execution details
+    """
+    execution = workflow_manager.recovery.start(
+        error_type,
+        affected_agents,
+        error_details or {},
+    )
+    return execution.to_dict()
+
+
+@mcp.tool()
+def start_conflict_resolution_workflow(
+    agent_a_id: str,
+    agent_b_id: str,
+    conflict_type: str,
+    conflict_details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Start a conflict resolution workflow.
+
+    Resolves conflicts between two agents.
+
+    Args:
+        agent_a_id: First agent in conflict
+        agent_b_id: Second agent in conflict
+        conflict_type: Type of conflict (parameter_mismatch, goal_conflict, terminology)
+        conflict_details: Additional conflict information
+
+    Returns:
+        Workflow execution details
+    """
+    execution = workflow_manager.conflict.start(
+        agent_a_id,
+        agent_b_id,
+        conflict_type,
+        conflict_details or {},
+    )
+    return execution.to_dict()
+
+
+@mcp.tool()
+def execute_workflow_step(
+    execution_id: str,
+    workflow_type: str,
+) -> dict[str, Any]:
+    """
+    Execute the next step in a workflow.
+
+    Args:
+        execution_id: The workflow execution ID
+        workflow_type: Type of workflow (onboarding, evolution, recovery, conflict)
+
+    Returns:
+        Updated workflow execution state
+    """
+    if workflow_type == "onboarding":
+        execution = workflow_manager.onboarding.execute_step(execution_id)
+    elif workflow_type == "evolution":
+        execution = workflow_manager.evolution.execute_step(execution_id)
+    elif workflow_type == "recovery":
+        execution = workflow_manager.recovery.execute_step(execution_id)
+    elif workflow_type == "conflict":
+        execution = workflow_manager.conflict.execute_step(execution_id)
+    else:
+        return {"error": f"Unknown workflow type: {workflow_type}"}
+
+    return execution.to_dict()
+
+
+@mcp.tool()
+def execute_workflow_all_steps(
+    execution_id: str,
+    workflow_type: str,
+) -> dict[str, Any]:
+    """
+    Execute all remaining steps in a workflow.
+
+    Args:
+        execution_id: The workflow execution ID
+        workflow_type: Type of workflow (onboarding, evolution, recovery, conflict)
+
+    Returns:
+        Final workflow execution state
+    """
+    if workflow_type == "onboarding":
+        execution = workflow_manager.onboarding.execute_all(execution_id)
+    elif workflow_type == "evolution":
+        # Evolution workflow has a similar execute_all concept
+        wf = workflow_manager.evolution
+        execution = wf._get_execution(execution_id)
+        while execution.status.value == "running":
+            execution = wf.execute_step(execution_id)
+    elif workflow_type == "recovery":
+        wf = workflow_manager.recovery
+        execution = wf._get_execution(execution_id)
+        while execution.status.value == "running":
+            execution = wf.execute_step(execution_id)
+    elif workflow_type == "conflict":
+        wf = workflow_manager.conflict
+        execution = wf._get_execution(execution_id)
+        while execution.status.value == "running":
+            execution = wf.execute_step(execution_id)
+    else:
+        return {"error": f"Unknown workflow type: {workflow_type}"}
+
+    return execution.to_dict()
+
+
+@mcp.tool()
+def get_workflow_status(
+    execution_id: str,
+) -> dict[str, Any]:
+    """
+    Get the status of any workflow execution.
+
+    Args:
+        execution_id: The workflow execution ID
+
+    Returns:
+        Current workflow state
+    """
+    execution = workflow_manager.get_execution_status(execution_id)
+    if not execution:
+        return {"error": f"Execution {execution_id} not found"}
+    return execution.to_dict()
+
+
+@mcp.tool()
+def list_all_workflow_executions() -> dict[str, Any]:
+    """
+    List all workflow executions across all types.
+
+    Returns:
+        All workflow executions
+    """
+    executions = workflow_manager.get_all_executions()
+    return {
+        "executions": [e.to_dict() for e in executions],
+        "total": len(executions),
+    }
 
 
 # =============================================================================
