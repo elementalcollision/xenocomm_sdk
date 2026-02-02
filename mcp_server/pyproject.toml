@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "xenocomm-mcp"
-version = "2.2.0"
+version = "2.3.0"
 description = "XenoComm MCP Server - Agent-to-Agent Coordination Protocol for the Agentic AI Ecosystem"
 readme = "README.md"
 license = "MIT"
