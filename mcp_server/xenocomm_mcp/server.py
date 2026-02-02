@@ -39,6 +39,13 @@ from .emergence import (
 )
 from .orchestrator import XenoCommOrchestrator, OrchestratorConfig
 from .workflows import WorkflowManager
+from .instrumented import (
+    InstrumentedOrchestrator,
+    InstrumentedNegotiationEngine,
+    InstrumentedEmergenceEngine,
+    InstrumentedWorkflowManager,
+)
+from .observation import get_observation_manager
 
 
 # Initialize the MCP server
@@ -47,9 +54,15 @@ mcp = FastMCP(
     json_response=True,
 )
 
-# Initialize the orchestrator (which manages all engines)
-orchestrator = XenoCommOrchestrator()
-workflow_manager = WorkflowManager(orchestrator)
+# Initialize observation first
+_obs_manager = get_observation_manager()
+_obs_manager.start()
+
+# Initialize the instrumented orchestrator (with observation)
+orchestrator = InstrumentedOrchestrator(observation_manager=_obs_manager)
+orchestrator.negotiation = InstrumentedNegotiationEngine(observation_manager=_obs_manager)
+orchestrator.emergence = InstrumentedEmergenceEngine(observation_manager=_obs_manager)
+workflow_manager = InstrumentedWorkflowManager(orchestrator, observation_manager=_obs_manager)
 
 # Keep references for backward compatibility
 alignment_engine = orchestrator.alignment
@@ -1289,6 +1302,274 @@ def list_all_workflow_executions() -> dict[str, Any]:
     return {
         "executions": [e.to_dict() for e in executions],
         "total": len(executions),
+    }
+
+
+# =============================================================================
+# OBSERVATION TOOLS
+# =============================================================================
+
+from .observation import FlowType, EventSeverity
+
+# Use the already-initialized observation manager
+observation_manager = _obs_manager
+
+
+@mcp.tool()
+def get_observation_stats() -> dict[str, Any]:
+    """
+    Get observation system statistics.
+
+    Returns metrics about events captured, throughput, error rates, etc.
+
+    Returns:
+        Statistics including total events, events per second, error rate, and type breakdown
+    """
+    return observation_manager.event_bus.get_stats()
+
+
+@mcp.tool()
+def get_recent_flow_events(
+    count: int = 50,
+    flow_type: str | None = None,
+) -> dict[str, Any]:
+    """
+    Get recent flow events from the observation system.
+
+    Args:
+        count: Number of recent events to retrieve (default 50)
+        flow_type: Optional filter by flow type (agent_lifecycle, alignment,
+                   negotiation, emergence, workflow, collaboration, system)
+
+    Returns:
+        List of recent events with timestamps and details
+    """
+    ft = None
+    if flow_type:
+        try:
+            ft = FlowType(flow_type)
+        except ValueError:
+            return {"error": f"Invalid flow type: {flow_type}",
+                   "valid_types": [t.value for t in FlowType]}
+
+    events = observation_manager.event_bus.get_recent_events(count, ft)
+    return {
+        "events": [e.to_dict() for e in events],
+        "count": len(events),
+        "flow_type_filter": flow_type,
+    }
+
+
+@mcp.tool()
+def get_flow_summary() -> dict[str, Any]:
+    """
+    Get a high-level summary of flow activity.
+
+    Returns aggregated metrics by flow type with rates and totals.
+
+    Returns:
+        Summary including total events, uptime, rates by type, and error rate
+    """
+    return observation_manager.get_flow_summary()
+
+
+@mcp.tool()
+def get_dashboard_data() -> dict[str, Any]:
+    """
+    Get all data needed for dashboard rendering.
+
+    Returns a comprehensive snapshot suitable for building a UI.
+
+    Returns:
+        Dashboard data including stats, events by type, timeline, and snapshots
+    """
+    return observation_manager.get_dashboard_data()
+
+
+@mcp.tool()
+def list_flow_types() -> dict[str, Any]:
+    """
+    List all available flow types for filtering.
+
+    Returns:
+        List of flow types with descriptions
+    """
+    return {
+        "flow_types": [
+            {"name": ft.value, "description": _get_flow_description(ft)}
+            for ft in FlowType
+        ]
+    }
+
+
+def _get_flow_description(ft: FlowType) -> str:
+    """Get human-readable description of a flow type."""
+    descriptions = {
+        FlowType.AGENT_LIFECYCLE: "Agent registration, updates, and deregistration events",
+        FlowType.ALIGNMENT: "Alignment checks between agents",
+        FlowType.NEGOTIATION: "Protocol negotiation sessions and proposals",
+        FlowType.EMERGENCE: "Protocol evolution, variants, and A/B experiments",
+        FlowType.WORKFLOW: "Workflow executions and step completions",
+        FlowType.COLLABORATION: "Collaboration session lifecycle events",
+        FlowType.SYSTEM: "System-level events (startup, shutdown, errors)",
+    }
+    return descriptions.get(ft, "Unknown flow type")
+
+
+@mcp.tool()
+def get_events_by_agent(
+    agent_id: str,
+    count: int = 50,
+) -> dict[str, Any]:
+    """
+    Get events involving a specific agent.
+
+    Args:
+        agent_id: The agent ID to filter by
+        count: Maximum number of events to return
+
+    Returns:
+        Events where the agent is source or target
+    """
+    all_events = observation_manager.event_bus.get_recent_events(count * 3)
+    agent_events = [
+        e for e in all_events
+        if e.source_agent == agent_id or e.target_agent == agent_id
+    ][:count]
+
+    return {
+        "agent_id": agent_id,
+        "events": [e.to_dict() for e in agent_events],
+        "count": len(agent_events),
+    }
+
+
+@mcp.tool()
+def get_events_by_session(
+    session_id: str,
+) -> dict[str, Any]:
+    """
+    Get all events for a specific session.
+
+    Args:
+        session_id: The session ID to filter by
+
+    Returns:
+        All events associated with the session
+    """
+    all_events = observation_manager.event_bus.get_recent_events(1000)
+    session_events = [
+        e for e in all_events
+        if e.session_id and session_id in e.session_id
+    ]
+
+    return {
+        "session_id": session_id,
+        "events": [e.to_dict() for e in session_events],
+        "count": len(session_events),
+    }
+
+
+@mcp.tool()
+def get_error_events(
+    count: int = 50,
+) -> dict[str, Any]:
+    """
+    Get recent error and critical events.
+
+    Args:
+        count: Maximum number of events to return
+
+    Returns:
+        Events with ERROR or CRITICAL severity
+    """
+    all_events = observation_manager.event_bus.get_recent_events(count * 5)
+    error_events = [
+        e for e in all_events
+        if e.severity in (EventSeverity.ERROR, EventSeverity.CRITICAL)
+    ][:count]
+
+    return {
+        "events": [e.to_dict() for e in error_events],
+        "count": len(error_events),
+        "total_errors_in_system": observation_manager.event_bus.get_stats()["error_count"],
+    }
+
+
+@mcp.tool()
+def emit_custom_event(
+    event_name: str,
+    summary: str,
+    flow_type: str = "system",
+    severity: str = "info",
+    metrics: dict[str, Any] | None = None,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Emit a custom observation event.
+
+    Useful for adding application-specific events to the observation stream.
+
+    Args:
+        event_name: Name/type of the event
+        summary: Human-readable summary of what happened
+        flow_type: Category (agent_lifecycle, alignment, negotiation, emergence,
+                   workflow, collaboration, system)
+        severity: Event severity (debug, info, warning, error, critical)
+        metrics: Optional numeric metrics to attach
+        tags: Optional tags for categorization
+
+    Returns:
+        The created event details
+    """
+    try:
+        ft = FlowType(flow_type)
+    except ValueError:
+        ft = FlowType.SYSTEM
+
+    try:
+        sev = EventSeverity(severity)
+    except ValueError:
+        sev = EventSeverity.INFO
+
+    # Use the appropriate sensor based on flow type
+    sensor_map = {
+        FlowType.AGENT_LIFECYCLE: observation_manager.agent_sensor,
+        FlowType.ALIGNMENT: observation_manager.alignment_sensor,
+        FlowType.NEGOTIATION: observation_manager.negotiation_sensor,
+        FlowType.EMERGENCE: observation_manager.emergence_sensor,
+        FlowType.WORKFLOW: observation_manager.workflow_sensor,
+        FlowType.COLLABORATION: observation_manager.collaboration_sensor,
+    }
+
+    sensor = sensor_map.get(ft, observation_manager.workflow_sensor)
+    event = sensor.emit(
+        event_name=event_name,
+        summary=summary,
+        severity=sev,
+        metrics=metrics or {},
+        tags=tags or [],
+    )
+
+    return event.to_dict() if event else {"error": "Failed to emit event"}
+
+
+@mcp.tool()
+def clear_observation_history() -> dict[str, Any]:
+    """
+    Clear the observation event history.
+
+    This resets all captured events. Use with caution.
+
+    Returns:
+        Confirmation of the clear operation
+    """
+    stats_before = observation_manager.event_bus.get_stats()
+    observation_manager.event_bus.clear()
+
+    return {
+        "status": "cleared",
+        "events_cleared": stats_before["total_events"],
     }
 
 
