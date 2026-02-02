@@ -13,26 +13,57 @@ XenoComm SDK is designed to provide a low-latency, resource-efficient communicat
 The fastest way to use XenoComm is via the MCP (Model Context Protocol) server:
 
 ```bash
-# Install
-pip install xenocomm-mcp
+# Clone and install
+git clone https://github.com/elementalcollision/xenocomm_sdk.git
+cd xenocomm_sdk/mcp_server
+pip install -r requirements.txt
 
 # Run (stdio for Claude Code, etc.)
-xenocomm-mcp
+python -m xenocomm_mcp
 
 # Or HTTP transport
-xenocomm-mcp --http --port 8000
+python -m xenocomm_mcp --transport http --port 8000
 ```
 
-Add to your Claude Code config:
+### Integrate with Claude
+
+**Option 1: Project-level configuration**
+
+The repository includes a `.mcp.json` file. When you open the project in Claude Code, it will automatically detect and offer to enable the XenoComm MCP server.
+
+**Option 2: Global Claude configuration**
+
+Add to your `~/.claude.json` or Claude Desktop config:
+
 ```json
 {
   "mcpServers": {
     "xenocomm": {
-      "command": "xenocomm-mcp"
+      "command": "python",
+      "args": ["-m", "xenocomm_mcp"],
+      "cwd": "/path/to/xenocomm_sdk/mcp_server",
+      "env": {
+        "PYTHONPATH": "/path/to/xenocomm_sdk/mcp_server"
+      }
     }
   }
 }
 ```
+
+**Option 3: Using uvx (recommended for installed packages)**
+
+```json
+{
+  "mcpServers": {
+    "xenocomm": {
+      "command": "uvx",
+      "args": ["xenocomm-mcp"]
+    }
+  }
+}
+```
+
+Once integrated, Claude will have access to 40+ XenoComm tools for agent coordination, including alignment verification, protocol negotiation, A/B testing, and workflow orchestration.
 
 See the [MCP Server documentation](mcp_server/README.md) for full details.
 
