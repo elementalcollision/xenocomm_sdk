@@ -156,6 +156,19 @@ def run_analytics(args):
     print()
 
 
+def run_research(args):
+    """Run multi-agent research with live dashboard."""
+    from .live_agent_demo import run_with_dashboard
+
+    run_with_dashboard(
+        task=args.task,
+        num_agents=args.agents,
+        mode=args.mode,
+        duration=args.duration,
+        refresh=args.refresh,
+    )
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -215,6 +228,43 @@ def main():
         help="Time window in minutes (default: all events)",
     )
     analytics_parser.set_defaults(func=run_analytics)
+
+    # Research command - multi-agent coordination with live dashboard
+    research_parser = subparsers.add_parser(
+        "research",
+        help="Run multi-agent research with live Flow Observatory",
+        aliases=["agents", "coordinate"],
+    )
+    research_parser.add_argument(
+        "-t", "--task",
+        default="Evaluate and compare how artificial intelligence has been used over the last 30 years in assistive technology",
+        help="Research task for agents to work on",
+    )
+    research_parser.add_argument(
+        "-n", "--agents",
+        type=int,
+        default=3,
+        help="Number of research agents (default: 3)",
+    )
+    research_parser.add_argument(
+        "-m", "--mode",
+        choices=["text", "rich", "dashboard", "headless"],
+        default="text",
+        help="Dashboard mode (default: text)",
+    )
+    research_parser.add_argument(
+        "-d", "--duration",
+        type=int,
+        default=30,
+        help="Research phase duration in seconds (default: 30)",
+    )
+    research_parser.add_argument(
+        "-r", "--refresh",
+        type=float,
+        default=0.5,
+        help="Dashboard refresh rate (default: 0.5)",
+    )
+    research_parser.set_defaults(func=run_research)
 
     # Parse and execute
     args = parser.parse_args()

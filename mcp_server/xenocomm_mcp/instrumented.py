@@ -180,10 +180,10 @@ class InstrumentedNegotiationEngine(NegotiationEngine):
         self,
         initiator_id: str,
         responder_id: str,
-        proposed_params: NegotiableParams | None = None,
+        proposed_params: NegotiableParams | dict | None = None,
     ) -> NegotiationSession:
         """Initiate negotiation with observation."""
-        session = super().initiate(initiator_id, responder_id, proposed_params)
+        session = super().initiate_session(initiator_id, responder_id, proposed_params or {})
 
         span_id = self.obs.negotiation_sensor.negotiation_initiated(
             initiator=initiator_id,
@@ -193,12 +193,15 @@ class InstrumentedNegotiationEngine(NegotiationEngine):
         self._active_spans[session.session_id] = span_id
 
         if proposed_params:
-            param_count = sum(1 for v in [
-                proposed_params.protocol_version,
-                proposed_params.data_format,
-                proposed_params.compression,
-                proposed_params.encryption,
-            ] if v is not None)
+            if isinstance(proposed_params, dict):
+                param_count = len(proposed_params)
+            else:
+                param_count = sum(1 for v in [
+                    proposed_params.protocol_version,
+                    proposed_params.data_format,
+                    proposed_params.compression,
+                    proposed_params.encryption,
+                ] if v is not None)
 
             self.obs.negotiation_sensor.proposal_made(
                 session_id=session.session_id,
@@ -213,18 +216,31 @@ class InstrumentedNegotiationEngine(NegotiationEngine):
         session_id: str,
         responder_id: str,
         response: str,
-        counter_params: NegotiableParams | None = None,
+        counter_params: NegotiableParams | dict | None = None,
         reason: str | None = None,
     ) -> NegotiationSession:
         """Respond to negotiation with observation."""
-        session = super().respond(session_id, responder_id, response, counter_params, reason)
+        # Route to appropriate method based on response type
+        if response == "accept":
+            session = super().respond_accept(session_id, responder_id)
+        elif response == "counter":
+            if not counter_params:
+                counter_params = {}
+            session = super().respond_counter(session_id, responder_id, counter_params)
+        elif response == "reject":
+            session = super().respond_reject(session_id, responder_id, reason)
+        else:
+            raise ValueError(f"Invalid response type: {response}")
 
         if response == "counter" and counter_params:
-            changes = sum(1 for v in [
-                counter_params.protocol_version,
-                counter_params.data_format,
-                counter_params.compression,
-            ] if v is not None)
+            if isinstance(counter_params, dict):
+                changes = len(counter_params)
+            else:
+                changes = sum(1 for v in [
+                    counter_params.protocol_version,
+                    counter_params.data_format,
+                    counter_params.compression,
+                ] if v is not None)
 
             self.obs.negotiation_sensor.counter_proposal(
                 session_id=session_id,
@@ -236,7 +252,7 @@ class InstrumentedNegotiationEngine(NegotiationEngine):
 
     def finalize(self, session_id: str, initiator_id: str) -> NegotiationSession:
         """Finalize negotiation with observation."""
-        session = super().finalize(session_id, initiator_id)
+        session = super().finalize_session(session_id, initiator_id)
 
         if session_id in self._active_spans:
             span_id = self._active_spans.pop(session_id)
