@@ -1,0 +1,3 @@
+# XenoComm MCP Server Dependencies
+mcp>=1.0.0
+fastmcp>=0.1.0

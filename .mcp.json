@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "xenocomm": {
+      "command": "python",
+      "args": ["-m", "xenocomm_mcp"],
+      "cwd": "${workspaceFolder}/mcp_server",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/mcp_server"
+      }
+    }
+  }
+}
