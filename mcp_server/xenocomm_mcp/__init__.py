@@ -92,8 +92,18 @@ from .analytics import (
     AlertSeverity,
     EnhancedObservationManager,
 )
+from .claude_bridge import (
+    ClaudeAgentBridge,
+    ClaudeAgentSession,
+    AgentType,
+    AgentMessage,
+    LanguagePattern,
+    LanguageEvolutionEngine,
+    IntentClassifier,
+    get_claude_bridge,
+)
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 __all__ = [
     # Alignment
     "AlignmentEngine",
@@ -154,6 +164,15 @@ __all__ = [
     "Alert",
     "AlertSeverity",
     "EnhancedObservationManager",
+    # Claude Bridge
+    "ClaudeAgentBridge",
+    "ClaudeAgentSession",
+    "AgentType",
+    "AgentMessage",
+    "LanguagePattern",
+    "LanguageEvolutionEngine",
+    "IntentClassifier",
+    "get_claude_bridge",
 ]
 
 

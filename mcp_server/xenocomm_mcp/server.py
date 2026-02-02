@@ -1574,6 +1574,244 @@ def clear_observation_history() -> dict[str, Any]:
 
 
 # =============================================================================
+# CLAUDE AGENT BRIDGE TOOLS
+# =============================================================================
+
+from .claude_bridge import (
+    ClaudeAgentBridge,
+    AgentType,
+    IntentClassifier,
+    get_claude_bridge,
+)
+
+# Initialize the Claude bridge
+claude_bridge = get_claude_bridge()
+
+
+@mcp.tool()
+def connect_claude_agent(
+    agent_id: str,
+    agent_type: str = "cowork",
+    capabilities: dict[str, Any] | None = None,
+    knowledge_domains: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Connect a Claude agent to the XenoComm ecosystem.
+
+    This registers the agent for observation, protocol negotiation,
+    and dynamic language evolution.
+
+    Args:
+        agent_id: Unique identifier for this agent
+        agent_type: Type of agent (cowork, claude_code, api_agent, mcp_client, custom)
+        capabilities: What this agent can do
+        knowledge_domains: Areas of expertise
+
+    Returns:
+        Session details including session_id for future interactions
+    """
+    try:
+        at = AgentType(agent_type)
+    except ValueError:
+        at = AgentType.CUSTOM
+
+    session = claude_bridge.register_agent(
+        agent_id=agent_id,
+        agent_type=at,
+        capabilities=capabilities,
+        knowledge_domains=knowledge_domains,
+    )
+
+    return session.to_dict()
+
+
+@mcp.tool()
+def disconnect_claude_agent(
+    session_id: str,
+    reason: str = "normal",
+) -> dict[str, Any]:
+    """
+    Disconnect a Claude agent from XenoComm.
+
+    Args:
+        session_id: The session ID from connect_claude_agent
+        reason: Reason for disconnection
+
+    Returns:
+        Confirmation of disconnection
+    """
+    claude_bridge.deregister_agent(session_id, reason)
+    return {"status": "disconnected", "session_id": session_id, "reason": reason}
+
+
+@mcp.tool()
+def send_agent_message(
+    session_id: str,
+    to_agent: str | None,
+    message_content: str,
+    message_type: str = "general",
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Send a message from one Claude agent to another.
+
+    The message is analyzed for intent and protocol patterns.
+    Content is hashed for privacy - we track patterns, not raw content.
+
+    Args:
+        session_id: Your session ID
+        to_agent: Target agent ID (None for broadcast)
+        message_content: The message content (will be hashed)
+        message_type: Type (request, response, notification, negotiation)
+        metadata: Optional additional metadata
+
+    Returns:
+        Message details including detected intent and protocol markers
+    """
+    # Classify intent automatically
+    intent = IntentClassifier.classify(message_content)
+    markers = IntentClassifier.extract_protocol_markers(message_content)
+
+    message = claude_bridge.send_message(
+        session_id=session_id,
+        to_agent=to_agent,
+        message_type=message_type,
+        intent=intent,
+        content=message_content,
+        protocol_markers=markers,
+        metadata=metadata,
+    )
+
+    return {
+        "message": message.to_dict(),
+        "detected_intent": intent,
+        "protocol_markers": markers,
+    }
+
+
+@mcp.tool()
+def mark_collaboration_outcome(
+    session_id: str,
+    success: bool,
+    notes: str = "",
+) -> dict[str, Any]:
+    """
+    Mark the outcome of a collaboration for language learning.
+
+    This helps the system learn which communication patterns lead
+    to successful outcomes, driving protocol evolution.
+
+    Args:
+        session_id: The session ID
+        success: Whether the collaboration was successful
+        notes: Optional notes about the outcome
+
+    Returns:
+        Confirmation and current language stats
+    """
+    claude_bridge.mark_collaboration_outcome(session_id, success, notes)
+
+    return {
+        "status": "recorded",
+        "success": success,
+        "language_stats": claude_bridge.get_language_stats(),
+    }
+
+
+@mcp.tool()
+def propose_language_construct(
+    session_id: str,
+    construct_type: str,
+    name: str,
+    definition: str,
+    rationale: str,
+    examples: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Propose a new language construct for the dynamic protocol.
+
+    Agents can propose:
+    - "term": A new term or concept definition
+    - "pattern": A communication pattern
+    - "protocol": A structured interaction protocol
+    - "shorthand": An abbreviated form for common exchanges
+
+    Args:
+        session_id: Your session ID
+        construct_type: Type of construct (term, pattern, protocol, shorthand)
+        name: Name for this construct
+        definition: What it means / how it works
+        rationale: Why this construct would be useful
+        examples: Optional usage examples
+
+    Returns:
+        The created construct proposal
+    """
+    construct_def = {
+        "name": name,
+        "definition": definition,
+        "examples": examples or [],
+    }
+
+    contribution = claude_bridge.propose_language_construct(
+        session_id=session_id,
+        construct_type=construct_type,
+        definition=construct_def,
+        rationale=rationale,
+    )
+
+    return contribution
+
+
+@mcp.tool()
+def get_claude_bridge_status() -> dict[str, Any]:
+    """
+    Get the status of the Claude agent bridge.
+
+    Returns information about connected agents, active sessions,
+    and language evolution statistics.
+
+    Returns:
+        Bridge status including sessions, language patterns, and stats
+    """
+    return claude_bridge.get_bridge_status()
+
+
+@mcp.tool()
+def get_language_patterns() -> dict[str, Any]:
+    """
+    Get detected language patterns from agent communications.
+
+    Shows patterns that have emerged from successful agent interactions
+    and their promotion status to protocols.
+
+    Returns:
+        List of detected patterns with statistics
+    """
+    patterns = claude_bridge.language_engine.get_patterns()
+    stats = claude_bridge.get_language_stats()
+
+    return {
+        "patterns": [p.to_dict() for p in patterns],
+        "stats": stats,
+    }
+
+
+@mcp.tool()
+def get_active_claude_sessions() -> dict[str, Any]:
+    """
+    Get all active Claude agent sessions.
+
+    Returns:
+        List of connected agents with their session details
+    """
+    return {
+        "sessions": claude_bridge.get_active_sessions(),
+        "count": len(claude_bridge.sessions),
+    }
+
+
+# =============================================================================
 # SERVER ENTRY POINT
 # =============================================================================
 
