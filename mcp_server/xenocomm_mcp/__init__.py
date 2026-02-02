@@ -59,8 +59,41 @@ from .workflows import (
     WorkflowExecution,
     WorkflowStatus,
 )
+from .observation import (
+    ObservationManager,
+    EventBus,
+    FlowEvent,
+    FlowType,
+    EventSeverity,
+    FlowSensor,
+    AgentSensor,
+    AlignmentSensor,
+    NegotiationSensor,
+    EmergenceSensor,
+    WorkflowSensor,
+    CollaborationSensor,
+    get_observation_manager,
+)
+from .instrumented import (
+    InstrumentedOrchestrator,
+    InstrumentedNegotiationEngine,
+    InstrumentedEmergenceEngine,
+    InstrumentedWorkflowManager,
+    create_instrumented_system,
+)
+from .analytics import (
+    EventPersistence,
+    FlowAnalytics,
+    FlowMetrics,
+    AgentMetrics,
+    TimeWindow,
+    AlertingSystem,
+    Alert,
+    AlertSeverity,
+    EnhancedObservationManager,
+)
 
-__version__ = "2.0.0"
+__version__ = "2.2.0"
 __all__ = [
     # Alignment
     "AlignmentEngine",
@@ -91,6 +124,36 @@ __all__ = [
     "WorkflowManager",
     "WorkflowExecution",
     "WorkflowStatus",
+    # Observation
+    "ObservationManager",
+    "EventBus",
+    "FlowEvent",
+    "FlowType",
+    "EventSeverity",
+    "FlowSensor",
+    "AgentSensor",
+    "AlignmentSensor",
+    "NegotiationSensor",
+    "EmergenceSensor",
+    "WorkflowSensor",
+    "CollaborationSensor",
+    "get_observation_manager",
+    # Instrumented
+    "InstrumentedOrchestrator",
+    "InstrumentedNegotiationEngine",
+    "InstrumentedEmergenceEngine",
+    "InstrumentedWorkflowManager",
+    "create_instrumented_system",
+    # Analytics
+    "EventPersistence",
+    "FlowAnalytics",
+    "FlowMetrics",
+    "AgentMetrics",
+    "TimeWindow",
+    "AlertingSystem",
+    "Alert",
+    "AlertSeverity",
+    "EnhancedObservationManager",
 ]
 
 

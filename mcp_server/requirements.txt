@@ -1,3 +1,8 @@
 # XenoComm MCP Server Dependencies
+
+# MCP Protocol
 mcp>=1.0.0
 fastmcp>=0.1.0
+
+# Dashboard (optional, for TUI observation)
+rich>=13.0.0
