@@ -10,6 +10,7 @@ Run with:
     python -m xenocomm_mcp demo               # Run demo with simulated activity
     python -m xenocomm_mcp stats              # Show observation stats
     python -m xenocomm_mcp analytics          # Run analytics
+    python -m xenocomm_mcp research           # Run multi-agent research coordination
 """
 
 import sys
@@ -18,7 +19,8 @@ import sys
 def main():
     # Check if a subcommand was provided
     if len(sys.argv) > 1 and sys.argv[1] in (
-        "dashboard", "dash", "observe", "demo", "stats", "analytics"
+        "dashboard", "dash", "observe", "demo", "stats", "analytics",
+        "research", "agents", "coordinate"
     ):
         # Use the CLI module for these commands
         from .cli import main as cli_main
