@@ -102,8 +102,35 @@ from .claude_bridge import (
     IntentClassifier,
     get_claude_bridge,
 )
+from .kfm_lifecycle import (
+    KFMLifecycleEngine,
+    KFMWeightingConfig,
+    KFMScores,
+    LifecyclePhase,
+    LifecycleState,
+    SelectionOperator,
+    PerformanceMetrics as KFMPerformanceMetrics,
+    AlignmentMetrics,
+    EvolutionPotential,
+    compute_agent_kfm_score,
+    recommend_agent_action,
+    get_kfm_engine,
+)
+from .integrations import (
+    IntegrationManager,
+    IntegrationBridge,
+    IntegrationStatus,
+    ExternalAgent,
+    OpenClawBridge,
+    OpenClawConfig,
+    ClaudeFlowBridge,
+    ClaudeFlowConfig,
+    get_integration_manager,
+    setup_openclaw_integration,
+    setup_claude_flow_integration,
+)
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"
 __all__ = [
     # Alignment
     "AlignmentEngine",
@@ -173,6 +200,31 @@ __all__ = [
     "LanguageEvolutionEngine",
     "IntentClassifier",
     "get_claude_bridge",
+    # KFM Lifecycle (Agentic Evolution)
+    "KFMLifecycleEngine",
+    "KFMWeightingConfig",
+    "KFMScores",
+    "LifecyclePhase",
+    "LifecycleState",
+    "SelectionOperator",
+    "KFMPerformanceMetrics",
+    "AlignmentMetrics",
+    "EvolutionPotential",
+    "compute_agent_kfm_score",
+    "recommend_agent_action",
+    "get_kfm_engine",
+    # Integrations (OpenClaw, Claude-Flow)
+    "IntegrationManager",
+    "IntegrationBridge",
+    "IntegrationStatus",
+    "ExternalAgent",
+    "OpenClawBridge",
+    "OpenClawConfig",
+    "ClaudeFlowBridge",
+    "ClaudeFlowConfig",
+    "get_integration_manager",
+    "setup_openclaw_integration",
+    "setup_claude_flow_integration",
 ]
 
 
