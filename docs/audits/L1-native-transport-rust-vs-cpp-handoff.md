@@ -6,6 +6,8 @@
 **Revised:** 2026-07-06 — after an independent verification re-run (a 10-agent adversarial workflow plus manual reproduction against the real PR base `origin/main` `e9284d1`). What changed and why is in §7; the short version: the *evidence of brokenness* re-confirmed clean, but the *decision framing* was widened — the original steered toward a Rust rewrite that is neither the cheapest nor the safest first move.
 **Companion:** [`xenocomm-review-and-action-plan-2026-07-06.md`](./xenocomm-review-and-action-plan-2026-07-06.md) (§4a, Track L1).
 
+> **Status (2026-07-06): ARCHIVE EXECUTED (PR #13).** The C++ SDK was moved under [`legacy/`](../../legacy/), Track S2 was flagged in-source + in [`/LEGACY.md`](../../LEGACY.md), and the README/review-doc were reconciled. **One item remains open, and it is not an engineering task:** the §4 external-validation gate — the product/market call the operator must make before any native-transport revival. Everything below §4 is the ready-to-run playbook for that gate; nothing further should be *built* until it returns an external signal.
+
 ---
 
 ## 0. TL;DR — what this handoff is
