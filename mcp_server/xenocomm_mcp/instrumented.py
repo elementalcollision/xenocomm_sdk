@@ -13,7 +13,13 @@ from functools import wraps
 from .orchestrator import XenoCommOrchestrator, CollaborationSession, OrchestratorConfig
 from .alignment import AgentContext, AlignmentEngine
 from .negotiation import NegotiationEngine, NegotiableParams, NegotiationSession
-from .emergence import EmergenceEngine, ProtocolVariant, PerformanceMetrics
+from .emergence import (
+    EmergenceEngine,
+    ProtocolVariant,
+    PerformanceMetrics,
+    RollbackReason,
+    RollbackPoint,
+)
 from .workflows import (
     WorkflowManager,
     MultiAgentOnboardingWorkflow,
@@ -324,13 +330,17 @@ class InstrumentedEmergenceEngine(EmergenceEngine):
 
         return variant
 
-    def rollback(self, variant_id: str) -> dict[str, Any]:
+    def rollback(
+        self,
+        variant_id: str,
+        reason: RollbackReason = RollbackReason.MANUAL,
+    ) -> RollbackPoint | None:
         """Rollback with observation."""
-        result = super().rollback(variant_id)
+        result = super().rollback(variant_id, reason=reason)
 
         self.obs.emergence_sensor.variant_rolled_back(
             variant_id=variant_id,
-            reason=result.get("reason", "manual rollback"),
+            reason=reason.value if isinstance(reason, RollbackReason) else str(reason),
         )
 
         return result

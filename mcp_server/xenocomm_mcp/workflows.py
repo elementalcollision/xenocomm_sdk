@@ -224,7 +224,7 @@ class MultiAgentOnboardingWorkflow:
     def _step_register(self, execution: WorkflowExecution) -> dict[str, Any]:
         """Register the new agent."""
         new_agent = execution.context["new_agent"]
-        self.orchestrator.alignment.contexts[new_agent.agent_id] = new_agent
+        self.orchestrator.alignment.registered_agents[new_agent.agent_id] = new_agent
 
         return {
             "agent_id": new_agent.agent_id,
@@ -239,8 +239,8 @@ class MultiAgentOnboardingWorkflow:
 
         alignment_results = {}
         for agent_id in existing_ids:
-            if agent_id in self.orchestrator.alignment.contexts:
-                existing = self.orchestrator.alignment.contexts[agent_id]
+            if agent_id in self.orchestrator.alignment.registered_agents:
+                existing = self.orchestrator.alignment.registered_agents[agent_id]
                 results = self.orchestrator.alignment.full_alignment_check(new_agent, existing)
                 alignment_results[agent_id] = {
                     k: {"status": v.status.value, "confidence": v.confidence}
@@ -683,7 +683,7 @@ class ErrorRecoveryWorkflow:
         elif error_type == "alignment_failure":
             # Re-run alignment checks
             for agent_id in affected:
-                if agent_id in self.orchestrator.alignment.contexts:
+                if agent_id in self.orchestrator.alignment.registered_agents:
                     recovery_actions.append(f"Re-checking alignment for {agent_id}")
 
         elif error_type == "protocol_mismatch":
@@ -856,8 +856,8 @@ class ConflictResolutionWorkflow:
         conflict_type = execution.context["conflict_type"]
 
         # Run alignment check to understand differences
-        context_a = self.orchestrator.alignment.contexts.get(agent_a)
-        context_b = self.orchestrator.alignment.contexts.get(agent_b)
+        context_a = self.orchestrator.alignment.registered_agents.get(agent_a)
+        context_b = self.orchestrator.alignment.registered_agents.get(agent_b)
 
         conflict_sources = []
         if context_a and context_b:
@@ -883,15 +883,15 @@ class ConflictResolutionWorkflow:
         }
 
         # Get agent contexts
-        if agent_a in self.orchestrator.alignment.contexts:
-            ctx = self.orchestrator.alignment.contexts[agent_a]
+        if agent_a in self.orchestrator.alignment.registered_agents:
+            ctx = self.orchestrator.alignment.registered_agents[agent_a]
             requirements["agent_a"] = {
                 "goals": ctx.goals,
                 "domains": ctx.knowledge_domains,
             }
 
-        if agent_b in self.orchestrator.alignment.contexts:
-            ctx = self.orchestrator.alignment.contexts[agent_b]
+        if agent_b in self.orchestrator.alignment.registered_agents:
+            ctx = self.orchestrator.alignment.registered_agents[agent_b]
             requirements["agent_b"] = {
                 "goals": ctx.goals,
                 "domains": ctx.knowledge_domains,

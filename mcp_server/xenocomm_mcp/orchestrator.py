@@ -524,9 +524,13 @@ class XenoCommOrchestrator:
             return {"variant": variant.to_dict(), "action": "started_canary"}
 
         elif variant.status == VariantStatus.CANARY:
-            # Check if safe to ramp
-            if self.emergence.should_rollback(variant_id):
-                self.emergence.rollback(variant_id)
+            # Check if safe to ramp. should_rollback returns a
+            # (should_rollback, reason) tuple — unpack it. A bare non-empty
+            # tuple is always truthy, which previously forced an unconditional
+            # rollback of every healthy canary.
+            should_rb, rb_reason = self.emergence.should_rollback(variant_id)
+            if should_rb:
+                self.emergence.rollback(variant_id, reason=rb_reason)
                 return {"variant": variant.to_dict(), "action": "rolled_back"}
             else:
                 self.emergence.ramp_canary(variant_id)
@@ -574,8 +578,10 @@ class XenoCommOrchestrator:
             )
             self.emergence.track_performance(session.active_variant_id, metrics)
 
-            # Check if evolution needed
-            if self.emergence.should_rollback(session.active_variant_id):
+            # Check if evolution needed. Unpack the (should_rollback, reason)
+            # tuple — a bare non-empty tuple is always truthy.
+            should_rb, _rb_reason = self.emergence.should_rollback(session.active_variant_id)
+            if should_rb:
                 result["warning"] = "Variant performance degraded, consider rollback"
                 result["should_rollback"] = True
 

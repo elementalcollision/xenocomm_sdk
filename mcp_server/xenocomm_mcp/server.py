@@ -112,7 +112,11 @@ def register_agent(
         context_params=context_params or {},
     )
 
-    alignment_engine.register_agent(context)
+    # Route through the orchestrator so BOTH the alignment engine and the
+    # orchestrator's agent_registry are populated. initiate_collaboration reads
+    # agent_registry; registering only on alignment_engine (which IS
+    # orchestrator.alignment) left collaboration unable to find the agents.
+    orchestrator.register_agent(context)
 
     return {
         "status": "registered",
@@ -405,6 +409,15 @@ def respond_to_negotiation(
     Returns:
         Updated session state
     """
+    # initiate_negotiation leaves the session in AWAITING_RESPONSE; accept and
+    # counter require the responder to have "received" the proposal first
+    # (PROPOSAL_RECEIVED). Advance the state machine here so the documented
+    # single-call respond flow works instead of only ever allowing a reject.
+    if response in ("accept", "counter"):
+        _session = negotiation_engine.sessions.get(session_id)
+        if _session is not None and _session.state == NegotiationState.AWAITING_RESPONSE:
+            negotiation_engine.receive_proposal(session_id, responder_id)
+
     if response == "accept":
         session = negotiation_engine.respond_accept(session_id, responder_id)
     elif response == "counter":
@@ -1203,6 +1216,21 @@ def start_conflict_resolution_workflow(
     return execution.to_dict()
 
 
+# The workflow discovery/creation tools advertise long names (e.g.
+# "multi_agent_onboarding"); the execution tools historically accepted only the
+# short keys. Accept both so a client can round-trip the name it was handed.
+_WORKFLOW_TYPE_ALIASES = {
+    "onboarding": "onboarding",
+    "multi_agent_onboarding": "onboarding",
+    "evolution": "evolution",
+    "protocol_evolution": "evolution",
+    "recovery": "recovery",
+    "error_recovery": "recovery",
+    "conflict": "conflict",
+    "conflict_resolution": "conflict",
+}
+
+
 @mcp.tool()
 def execute_workflow_step(
     execution_id: str,
@@ -1213,11 +1241,14 @@ def execute_workflow_step(
 
     Args:
         execution_id: The workflow execution ID
-        workflow_type: Type of workflow (onboarding, evolution, recovery, conflict)
+        workflow_type: Workflow type — accepts either the short key
+            (onboarding, evolution, recovery, conflict) or the full name
+            returned by the discovery/creation tools (e.g. multi_agent_onboarding).
 
     Returns:
         Updated workflow execution state
     """
+    workflow_type = _WORKFLOW_TYPE_ALIASES.get(workflow_type, workflow_type)
     if workflow_type == "onboarding":
         execution = workflow_manager.onboarding.execute_step(execution_id)
     elif workflow_type == "evolution":
@@ -1247,6 +1278,7 @@ def execute_workflow_all_steps(
     Returns:
         Final workflow execution state
     """
+    workflow_type = _WORKFLOW_TYPE_ALIASES.get(workflow_type, workflow_type)
     if workflow_type == "onboarding":
         execution = workflow_manager.onboarding.execute_all(execution_id)
     elif workflow_type == "evolution":
