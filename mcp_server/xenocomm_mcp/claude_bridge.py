@@ -1,14 +1,17 @@
 """
 XenoComm Claude Agent Bridge
 
-Enables Claude Cowork agents to:
+A session registry + intent-pattern telemetry layer for agents (Claude Cowork,
+Claude Code, MCP clients). It enables agents to:
 1. Register as XenoComm participants
 2. Negotiate communication protocols with other agents
-3. Contribute to dynamic language emergence
+3. Have their per-message intent patterns detected and recorded (telemetry)
 4. Be observed via the flow dashboard
 
-This bridge connects the Claude agent ecosystem to XenoComm's
-protocol negotiation and emergence capabilities.
+Note: this module does NOT call an LLM. "Language" detection here is keyword-based
+intent tagging over recurring intent n-grams — telemetry, not language generation
+or an LLM integration. (The names are retained for API compatibility; see the
+repository README's Component Status.)
 """
 
 from __future__ import annotations
