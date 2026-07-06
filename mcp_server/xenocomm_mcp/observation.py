@@ -17,6 +17,29 @@ from typing import Any, Callable
 from enum import Enum
 from collections import deque
 from abc import ABC, abstractmethod
+import contextvars
+from contextlib import contextmanager
+
+
+# ==================== Causal Context ====================
+
+# Ambient causal parent for emitted flow events. Within a ``causal_scope`` the
+# events default to the scoped event id as their parent_event_id, producing a
+# real causal tree (OpenTelemetry-style) without threading ids through every
+# sensor call site.
+_current_parent_event_id: contextvars.ContextVar = contextvars.ContextVar(
+    "xenocomm_parent_event_id", default=None
+)
+
+
+@contextmanager
+def causal_scope(parent_event_id: str | None):
+    """Emit flow events under ``parent_event_id`` as their causal parent."""
+    token = _current_parent_event_id.set(parent_event_id)
+    try:
+        yield
+    finally:
+        _current_parent_event_id.reset(token)
 
 
 # ==================== Event Types ====================
@@ -254,6 +277,10 @@ class FlowSensor(ABC):
         """Emit a flow event."""
         if not self.enabled:
             return None
+
+        # Inherit the ambient causal parent unless one was passed explicitly.
+        if parent_event_id is None:
+            parent_event_id = _current_parent_event_id.get()
 
         event = FlowEvent(
             event_id=str(uuid.uuid4()),
@@ -721,6 +748,13 @@ def get_observation_manager() -> ObservationManager:
     if _observation_manager is None:
         _observation_manager = ObservationManager()
     return _observation_manager
+
+
+def set_observation_manager(manager: ObservationManager) -> None:
+    """Install a specific observation manager as the process-wide singleton so
+    get_observation_manager() returns it everywhere."""
+    global _observation_manager
+    _observation_manager = manager
 
 
 def reset_observation_manager() -> ObservationManager:

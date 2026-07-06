@@ -45,7 +45,10 @@ from .instrumented import (
     InstrumentedEmergenceEngine,
     InstrumentedWorkflowManager,
 )
-from .observation import get_observation_manager
+import os
+
+from .observation import get_observation_manager, set_observation_manager
+from .analytics import EnhancedObservationManager
 
 
 # Initialize the MCP server
@@ -54,8 +57,15 @@ mcp = FastMCP(
     json_response=True,
 )
 
-# Initialize observation first
-_obs_manager = get_observation_manager()
+# Initialize observation first. Use the EnhancedObservationManager so the
+# analytics + anomaly-detection substrate actually runs in the product (not just
+# the base in-memory ring). gzip-JSONL persistence is enabled when
+# XENOCOMM_FLOW_LOG_DIR is set. Install it as the process-wide singleton so
+# get_observation_manager() returns the same instance everywhere.
+_obs_manager = EnhancedObservationManager(
+    persist_to=os.environ.get("XENOCOMM_FLOW_LOG_DIR")
+)
+set_observation_manager(_obs_manager)
 _obs_manager.start()
 
 # Initialize the instrumented orchestrator (with observation)
@@ -1352,6 +1362,26 @@ from .observation import FlowType, EventSeverity
 
 # Use the already-initialized observation manager
 observation_manager = _obs_manager
+
+
+@mcp.tool()
+def get_flow_analytics() -> dict[str, Any]:
+    """
+    Get aggregated flow analytics from the observability substrate.
+
+    Includes per-flow-type metrics, per-agent metrics, throughput trend,
+    error summary, detected anomalies, and active alerts. Backed by the
+    EnhancedObservationManager's persisted analytics engine.
+
+    Returns:
+        Analytics summary, or a note if only the base manager is running.
+    """
+    if hasattr(observation_manager, "get_analytics_summary"):
+        return observation_manager.get_analytics_summary()
+    return {
+        "error": "analytics unavailable",
+        "detail": "the base ObservationManager is running; no analytics engine is wired in",
+    }
 
 
 @mcp.tool()

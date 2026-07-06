@@ -31,6 +31,7 @@ from .workflows import (
 from .observation import (
     ObservationManager,
     get_observation_manager,
+    causal_scope,
     FlowType,
     EventSeverity,
 )
@@ -91,42 +92,55 @@ class InstrumentedOrchestrator(XenoCommOrchestrator):
         metadata: dict[str, Any] | None = None,
     ) -> CollaborationSession:
         """Initiate collaboration with observation."""
-        # Start alignment span
-        align_span = self.obs.alignment_sensor.alignment_started(
-            agent_a=agent_a_id,
-            agent_b=agent_b_id,
+        # Root event for the whole collaboration; the alignment and session
+        # events emitted below inherit it as their causal parent, so the flow
+        # forms a real event tree instead of a flat, parentless stream.
+        root = self.obs.collaboration_sensor.emit(
+            "collaboration_initiated",
+            summary=f"Collaboration initiated: {agent_a_id} <-> {agent_b_id}",
+            source_agent=agent_a_id,
+            target_agent=agent_b_id,
             session_id=f"{agent_a_id}:{agent_b_id}",
+            tags=["collaboration", "root"],
         )
 
-        # Run the actual collaboration
-        session = super().initiate_collaboration(
-            agent_a_id=agent_a_id,
-            agent_b_id=agent_b_id,
-            required_domains=required_domains,
-            proposed_params=proposed_params,
-            metadata=metadata,
-        )
+        with causal_scope(root.event_id if root else None):
+            # Start alignment span
+            align_span = self.obs.alignment_sensor.alignment_started(
+                agent_a=agent_a_id,
+                agent_b=agent_b_id,
+                session_id=f"{agent_a_id}:{agent_b_id}",
+            )
 
-        # Emit alignment completion
-        alignment_results = session.alignment_results or {}
-        aligned_count = sum(
-            1 for r in alignment_results.values()
-            if hasattr(r, 'confidence') and r.confidence > 0.7
-        )
+            # Run the actual collaboration
+            session = super().initiate_collaboration(
+                agent_a_id=agent_a_id,
+                agent_b_id=agent_b_id,
+                required_domains=required_domains,
+                proposed_params=proposed_params,
+                metadata=metadata,
+            )
 
-        self.obs.alignment_sensor.alignment_completed(
-            span_id=align_span,
-            score=session.metrics.alignment_score,
-            dimensions_checked=len(alignment_results),
-            aligned_count=aligned_count,
-        )
+            # Emit alignment completion
+            alignment_results = session.alignment_results or {}
+            aligned_count = sum(
+                1 for r in alignment_results.values()
+                if hasattr(r, 'confidence') and r.confidence > 0.7
+            )
 
-        # Emit collaboration session event
-        self.obs.collaboration_sensor.session_created(
-            session_id=session.session_id,
-            agent_a=agent_a_id,
-            agent_b=agent_b_id,
-        )
+            self.obs.alignment_sensor.alignment_completed(
+                span_id=align_span,
+                score=session.metrics.alignment_score,
+                dimensions_checked=len(alignment_results),
+                aligned_count=aligned_count,
+            )
+
+            # Emit collaboration session event
+            self.obs.collaboration_sensor.session_created(
+                session_id=session.session_id,
+                agent_a=agent_a_id,
+                agent_b=agent_b_id,
+            )
 
         return session
 
