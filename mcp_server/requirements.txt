@@ -1,8 +1,9 @@
-# XenoComm MCP Server Dependencies
+# XenoComm MCP Server dependencies.
+#
+# This mirrors [project.dependencies] in pyproject.toml, which is the source of
+# truth. Prefer `pip install .` (or `pip install -e .`) — it reads pyproject
+# directly. This file is provided for `pip install -r requirements.txt` users.
 
-# MCP Protocol
-mcp>=1.0.0
-fastmcp>=0.1.0
-
-# Dashboard (optional, for TUI observation)
-rich>=13.0.0
+mcp>=1.20.0,<2
+rich>=13.0.0,<16
+uvicorn>=0.27,<1
