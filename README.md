@@ -1,12 +1,37 @@
 # XenoComm SDK
 
-A high-performance communication framework enabling AI agents to communicate over IP networks with maximum computational efficiency.
+**An MCP coordination server for the agentic AI ecosystem** — alignment
+verification, protocol negotiation, and observable protocol experimentation,
+exposed as MCP tools for Claude Code, Moltbot/OpenClaw, Cursor, and any
+MCP-compatible client.
 
-**Now with MCP Protocol Bridge** — Bring XenoComm's coordination capabilities to Claude Code, Moltbot/OpenClaw, Cursor, and any MCP-compatible client.
+> **What's active:** the shipping, actively-developed product is the pure-Python
+> **MCP server** under [`mcp_server/`](mcp_server/). The original C++ SDK (the
+> "Getting Started" and C++ API sections further down) is **legacy and dormant** —
+> not built or linked by the MCP server, and unmaintained. See
+> [Component Status](#component-status).
 
 ## Overview
 
-XenoComm SDK is designed to provide a low-latency, resource-efficient communication layer for AI agents running in cloud environments. The framework prioritizes machine-optimized interaction over human readability, enabling the potential emergence of adaptive, machine-optimized communication protocols.
+XenoComm exposes agent-coordination primitives — alignment verification between
+heterogeneous agents, a protocol-negotiation state machine, and canary/rollback
+protocol experimentation — as MCP tools, with a built-in observability layer
+(typed flow events, analytics, anomaly detection). It began as a C++ SDK for
+efficient binary agent transport; with MCP now the standard for agentic tooling,
+active development is the MCP server and the C++ core is retained as dormant
+legacy reference.
+
+## Component Status
+
+| Component | Status |
+|---|---|
+| **MCP server** (`mcp_server/`, Python) | ✅ **Active** — the shipping product (~65 MCP tools) |
+| Alignment / negotiation / emergence engines | ✅ Real (lexical alignment; canary/rollback emergence bookkeeping) |
+| Observability (flow events, analytics, anomaly detection) | ✅ Active in the server |
+| "Claude bridge" tools | ⚠️ An agent **session registry + intent-pattern telemetry** — does **not** call an LLM |
+| KFM lifecycle engine | 🚧 Implemented, not yet exposed as MCP tools |
+| OpenClaw / Claude-Flow integrations | 🚧 Structural stubs |
+| **C++ SDK** (`src/`, `include/`) | 🗄️ **Legacy / dormant** — not built or linked by the MCP server; unmaintained |
 
 ## 🚀 Quick Start: MCP Server
 
@@ -69,20 +94,25 @@ See the [MCP Server documentation](mcp_server/README.md) for full details.
 
 ## Key Features
 
-- **🔌 MCP Protocol Bridge**: Expose coordination capabilities to the agentic AI ecosystem (Claude Code, Moltbot, Cursor)
-- **🤝 Agent Alignment Verification**: 5 formal strategies (knowledge, goals, terminology, assumptions, context) for establishing mutual understanding
-- **📋 Dynamic Protocol Negotiation**: State machine for agents to agree on communication parameters
-- **🧬 Protocol Evolution**: EmergenceManager with canary deployments, circuit breakers, and safe rollback
-- **Optimized Network Connections**: Direct TCP/UDP streams with connection pooling and async I/O support
-- **Efficient Capability Discovery**: Binary-optimized capability representation with fast indexing and caching
-- **Direct Data Representation**: Multiple optimized encoding formats including VECTOR_FLOAT32, VECTOR_INT8, and GGWAVE_FSK
-- **Robust Error Handling**: Configurable error detection, recovery strategies, and retry logic
-- **Feedback-Driven Optimization**: Built-in performance monitoring and protocol adaptation
-- **Security First**: Integrated encryption and authentication with minimal overhead
-- **Language Support**: Core C++ implementation with Python bindings and MCP server
-- **Data Translation & Validation**: Built-in TranslationService for JSON/XML serialization, schema validation, template formatting, and type mapping (Python)
+**MCP server (active):**
 
-## Getting Started
+- **🔌 MCP Protocol Bridge**: Expose coordination capabilities to the agentic AI ecosystem (Claude Code, Moltbot, Cursor)
+- **🤝 Agent Alignment Verification**: 5 strategies (knowledge, goals, terminology, assumptions, context) for establishing mutual understanding
+- **📋 Protocol Negotiation**: State machine for agents to agree on communication parameters
+- **🧬 Protocol Experimentation**: Canary deployments, circuit breakers, and safe rollback (the Python emergence engine)
+- **🔭 Observability**: Typed flow events with causal links, per-flow/agent analytics, and anomaly detection — queryable via `get_flow_analytics`
+
+**Legacy C++ SDK (dormant — not built or linked by the MCP server):**
+
+- Optimized TCP/UDP connections, binary capability discovery, encodings (VECTOR_FLOAT32, GGWAVE_FSK), and a transport/security layer. Retained as historical reference; see [Component Status](#component-status) and the caveats in the C++ sections below.
+
+## Getting Started (Legacy C++ SDK — dormant)
+
+> ⚠️ **The C++ SDK below is legacy and dormant.** It is not built or linked by
+> the shipping MCP server, is unmaintained, and the example code in these
+> sections may not compile against the current headers. For the actively-
+> developed product, use the **[MCP server](mcp_server/)** (see Quick Start
+> above). The material below is retained for historical reference.
 
 ### Prerequisites
 
@@ -314,7 +344,11 @@ XenoComm SDK is currently in active development.
 
 **v2.0** introduces the MCP Protocol Bridge, bringing XenoComm's coordination capabilities to the agentic AI ecosystem. The MCP server exposes alignment verification, protocol negotiation, and emergence tools compatible with Claude Code, Moltbot/OpenClaw, Cursor, and other MCP clients.
 
-Core features including ConnectionManager, CapabilitySignaler, NegotiationProtocol, DataTranscoder, EmergenceManager, and the new MCP server are implemented and tested.
+The **MCP server** (Python, `mcp_server/`) is the actively-developed and tested
+product. The original C++ components (ConnectionManager, CapabilitySignaler,
+NegotiationProtocol, DataTranscoder, EmergenceManager) are **dormant legacy** —
+retained but not built or linked by the MCP server; treat them as unmaintained
+reference code rather than a supported, tested transport.
 
 ## Contact
 

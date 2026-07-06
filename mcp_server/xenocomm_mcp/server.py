@@ -1675,8 +1675,10 @@ def connect_claude_agent(
     """
     Connect a Claude agent to the XenoComm ecosystem.
 
-    This registers the agent for observation, protocol negotiation,
-    and dynamic language evolution.
+    This registers the agent for observation and protocol negotiation, and
+    records its per-message intent patterns as telemetry. (Note: this does not
+    invoke an LLM — "language" here is keyword-based intent tagging over
+    recurring intent n-grams, not language generation.)
 
     Args:
         agent_id: Unique identifier for this agent
@@ -1845,8 +1847,8 @@ def get_claude_bridge_status() -> dict[str, Any]:
     """
     Get the status of the Claude agent bridge.
 
-    Returns information about connected agents, active sessions,
-    and language evolution statistics.
+    Returns information about connected agents, active sessions, and
+    intent-pattern telemetry (recurring intent n-grams; not LLM-driven).
 
     Returns:
         Bridge status including sessions, language patterns, and stats
