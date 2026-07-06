@@ -14,7 +14,7 @@ Reference: https://github.com/elementalcollision/Agentic_Evolution
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Optional
 import math
@@ -154,7 +154,7 @@ class KFMLifecycleEngine:
         metadata: dict[str, Any] | None = None,
     ) -> LifecycleState:
         """Register a new entity for lifecycle management."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         state = LifecycleState(
             entity_id=entity_id,
             entity_type=entity_type,
@@ -190,7 +190,7 @@ class KFMLifecycleEngine:
         if evolution:
             state.evolution = evolution
 
-        state.updated_at = datetime.utcnow()
+        state.updated_at = datetime.now(timezone.utc)
 
         # Recompute KFM scores
         state.scores = self._compute_kfm_scores(state)
@@ -258,7 +258,7 @@ class KFMLifecycleEngine:
         m_compliance = align.protocol_compliance
 
         # Stability bonus for time in current phase
-        time_in_phase = (datetime.utcnow() - state.phase_entered_at).total_seconds()
+        time_in_phase = (datetime.now(timezone.utc) - state.phase_entered_at).total_seconds()
         stability_hours = time_in_phase / 3600
         m_stability = min(1.0, stability_hours / 24)  # Max out at 24 hours
 
@@ -331,7 +331,7 @@ class KFMLifecycleEngine:
 
         elif current_phase == LifecyclePhase.EXPERIMENTAL:
             # Check minimum duration
-            time_in_phase = datetime.utcnow() - state.phase_entered_at
+            time_in_phase = datetime.now(timezone.utc) - state.phase_entered_at
             if time_in_phase < self.config.EXPERIMENTAL_MIN_DURATION:
                 return None, "Minimum experimental duration not met"
 
@@ -361,7 +361,7 @@ class KFMLifecycleEngine:
 
         elif current_phase == LifecyclePhase.DEPRECATED:
             # Deprecated entities proceed to elimination
-            time_deprecated = datetime.utcnow() - state.phase_entered_at
+            time_deprecated = datetime.now(timezone.utc) - state.phase_entered_at
             if time_deprecated > timedelta(hours=24):  # Grace period
                 return LifecyclePhase.ELIMINATED, "Grace period expired, eliminating"
 
@@ -388,7 +388,7 @@ class KFMLifecycleEngine:
 
         # Record transition in history
         state.history.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "event": "phase_transition",
             "from_phase": old_phase.value,
             "to_phase": new_phase.value,
@@ -402,8 +402,8 @@ class KFMLifecycleEngine:
 
         # Update state
         state.phase = new_phase
-        state.phase_entered_at = datetime.utcnow()
-        state.updated_at = datetime.utcnow()
+        state.phase_entered_at = datetime.now(timezone.utc)
+        state.updated_at = datetime.now(timezone.utc)
 
         # Record global transition
         self._phase_transitions.append({
@@ -412,7 +412,7 @@ class KFMLifecycleEngine:
             "from_phase": old_phase.value,
             "to_phase": new_phase.value,
             "reason": reason,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
         return state
@@ -495,7 +495,7 @@ def compute_agent_kfm_score(
 
     # Adjust for time factor
     if time_active_hours > 0:
-        state.phase_entered_at = datetime.utcnow() - timedelta(hours=time_active_hours)
+        state.phase_entered_at = datetime.now(timezone.utc) - timedelta(hours=time_active_hours)
         state.scores = engine._compute_kfm_scores(state)
 
     return state.scores

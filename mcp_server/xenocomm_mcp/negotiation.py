@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 from enum import Enum
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class NegotiationState(Enum):
@@ -196,7 +196,7 @@ class NegotiationRound:
     proposer_id: str
     params: NegotiableParams
     response: str | None = None  # accept, counter, reject
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class TimeoutPolicy(Enum):
@@ -229,8 +229,8 @@ class NegotiationSession:
     proposed_params: NegotiableParams
     counter_params: NegotiableParams | None = None
     final_params: NegotiableParams | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: datetime | None = None
     failure_reason: str | None = None
     # Enhanced tracking
@@ -243,13 +243,13 @@ class NegotiationSession:
         """Check if the session has timed out."""
         if self.expires_at is None:
             return False
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
     def time_remaining_ms(self) -> int | None:
         """Get milliseconds until timeout."""
         if self.expires_at is None:
             return None
-        delta = self.expires_at - datetime.utcnow()
+        delta = self.expires_at - datetime.now(timezone.utc)
         return max(0, int(delta.total_seconds() * 1000))
 
     def add_round(self, proposer_id: str, params: NegotiableParams, response: str | None = None):
@@ -369,7 +369,7 @@ class NegotiationEngine:
 
         session_id = str(uuid.uuid4())
         timeout = timeout_ms or self.config.default_timeout_ms
-        expires_at = datetime.utcnow() + timedelta(milliseconds=timeout)
+        expires_at = datetime.now(timezone.utc) + timedelta(milliseconds=timeout)
 
         session = NegotiationSession(
             session_id=session_id,
@@ -405,7 +405,7 @@ class NegotiationEngine:
             raise ValueError("Agent is not the responder for this session")
 
         session.state = NegotiationState.PROPOSAL_RECEIVED
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -426,7 +426,7 @@ class NegotiationEngine:
             raise ValueError(f"Cannot accept from state {session.state}")
 
         session.state = NegotiationState.AWAITING_FINALIZATION
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -452,7 +452,7 @@ class NegotiationEngine:
 
         session.counter_params = counter_params
         session.state = NegotiationState.AWAITING_FINALIZATION
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -472,7 +472,7 @@ class NegotiationEngine:
 
         session.state = NegotiationState.FAILED
         session.failure_reason = reason or "Proposal rejected"
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -496,7 +496,7 @@ class NegotiationEngine:
             raise ValueError("No counter-proposal to accept")
 
         session.state = NegotiationState.FINALIZING
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -519,7 +519,7 @@ class NegotiationEngine:
         # Use counter params if available, otherwise original proposal
         session.final_params = session.counter_params or session.proposed_params
         session.state = NegotiationState.FINALIZED
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -539,7 +539,7 @@ class NegotiationEngine:
 
         session.state = NegotiationState.CLOSED
         session.failure_reason = reason
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -595,10 +595,10 @@ class NegotiationEngine:
         elif self.config.timeout_policy == TimeoutPolicy.EXTEND:
             if session.extend_count < self.config.auto_extend_count:
                 session.extend_count += 1
-                session.expires_at = datetime.utcnow() + timedelta(
+                session.expires_at = datetime.now(timezone.utc) + timedelta(
                     milliseconds=self.config.default_timeout_ms
                 )
-                session.updated_at = datetime.utcnow()
+                session.updated_at = datetime.now(timezone.utc)
                 return False, session
             else:
                 session.state = NegotiationState.TIMED_OUT
@@ -637,10 +637,10 @@ class NegotiationEngine:
         if session.expires_at:
             session.expires_at = session.expires_at + timedelta(milliseconds=extension)
         else:
-            session.expires_at = datetime.utcnow() + timedelta(milliseconds=extension)
+            session.expires_at = datetime.now(timezone.utc) + timedelta(milliseconds=extension)
 
         session.extend_count += 1
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -801,7 +801,7 @@ class NegotiationEngine:
         # Update session
         session.counter_params = counter_params
         session.state = NegotiationState.COUNTER_RECEIVED
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         # Track in history
         if self.config.track_history:
@@ -900,7 +900,7 @@ class NegotiationEngine:
         session.alignment_score = score
         if alignment_details:
             session.metadata["alignment_details"] = alignment_details
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
         return session
 
     def should_auto_accept(self, session_id: str, threshold: float = 0.8) -> bool:

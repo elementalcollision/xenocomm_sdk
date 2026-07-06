@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import gzip
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -24,6 +24,12 @@ from .observation import (
     EventSeverity,
     ObservationManager,
 )
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    """Treat a naive datetime (e.g. from a legacy naive-persisted log) as UTC,
+    so it compares cleanly with the now-timezone-aware event timestamps."""
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
 # ==================== Event Persistence ====================
@@ -61,7 +67,7 @@ class EventPersistence:
 
     def _get_log_filename(self) -> Path:
         """Generate a log filename with timestamp."""
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         ext = ".jsonl.gz" if self.compress else ".jsonl"
         return self.base_path / f"flows_{timestamp}_{self._file_count}{ext}"
 
@@ -159,7 +165,7 @@ class EventPersistence:
             event_id=data["event_id"],
             flow_type=FlowType(data["flow_type"]),
             event_name=data["event_name"],
-            timestamp=datetime.fromisoformat(data["timestamp"]),
+            timestamp=_ensure_utc(datetime.fromisoformat(data["timestamp"])),
             severity=EventSeverity(data.get("severity", "info")),
             source_agent=data.get("source_agent"),
             target_agent=data.get("target_agent"),
@@ -183,13 +189,13 @@ class TimeWindow:
 
     @classmethod
     def last_minutes(cls, minutes: int) -> "TimeWindow":
-        end = datetime.utcnow()
+        end = datetime.now(timezone.utc)
         start = end - timedelta(minutes=minutes)
         return cls(start=start, end=end, duration_seconds=minutes * 60)
 
     @classmethod
     def last_hours(cls, hours: int) -> "TimeWindow":
-        end = datetime.utcnow()
+        end = datetime.now(timezone.utc)
         start = end - timedelta(hours=hours)
         return cls(start=start, end=end, duration_seconds=hours * 3600)
 
@@ -399,7 +405,7 @@ class FlowAnalytics:
         num_buckets: int = 12,
     ) -> list[dict[str, Any]]:
         """Get throughput trend over time buckets."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         buckets = []
 
         for i in range(num_buckets - 1, -1, -1):
@@ -586,7 +592,7 @@ class AlertingSystem:
                     title="Critical Error",
                     description=event.summary,
                     severity=AlertSeverity.CRITICAL,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     source_event=event,
                 )
             return None
@@ -599,7 +605,7 @@ class AlertingSystem:
                     title="Protocol Rollback",
                     description=f"Rollback triggered: {event.summary}",
                     severity=AlertSeverity.WARNING,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     source_event=event,
                 )
             return None
@@ -613,7 +619,7 @@ class AlertingSystem:
                     title="Workflow Failed",
                     description=event.summary,
                     severity=AlertSeverity.WARNING,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     source_event=event,
                 )
             return None
