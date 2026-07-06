@@ -27,7 +27,9 @@ Six things, all CONFIRMED against source and twice-vetted:
 5. **The C++ is dormant, partial, and defective — not dead. [vetting]** Never linked by the shipping wheel, unmaintained (frozen 2025-05, and its CI was removed 2026-07-06), yet it *does* contain real compiled Goertzel-FSK/CRC/RLE codecs. But the FSK modem is **numerically broken for its own defaults** (109/256 bytes fail) and Reed-Solomon is a hollow stub. Its crypto is theater (plaintext `encrypt()`), but on a path the product never runs.
 6. **Security:** no committed secrets (verified over the full tree + history). The one notable exposure — `--http` with zero auth — is currently **latent** behind a startup `TypeError` (C7). The C++ security cluster is severe-in-principle but dormant.
 
-**Recommended posture:** *finish the pivot honestly, around the observability moat.* Fix the seven ship-blockers; **wire the real analytics substrate into the running server** (highest leverage — converts the moat from "code exists" to "runs"); fix + authenticate the HTTP path; retire the two overclaims and the stale thesis; demarcate (don't archive) the C++, and if the native transport is ever revived, **build it in Rust** (§4 / Track L).
+**Recommended posture:** *finish the pivot honestly, around the observability moat.* Fix the seven ship-blockers; **wire the real analytics substrate into the running server** (highest leverage — converts the moat from "code exists" to "runs"); fix + authenticate the HTTP path; retire the two overclaims and the stale thesis; **archive the C++** (done — moved to [`legacy/`](../../legacy/), PR #13) and gate any native-transport revival behind cheap external validation, building the *cheapest sufficient* transport with a full Rust rewrite only as a last resort (§4 / Track L).
+
+> **Update 2026-07-06 (post-decision):** Track **L1** is **resolved → archived** and Track **S2** is **flagged/closed** (both PR #13). The original §4a recommendation to "rewrite in Rust if kept" was **superseded** by an independent verification re-run — see the corrected framing in §4a and the amended handoff [`L1-native-transport-rust-vs-cpp-handoff.md`](./L1-native-transport-rust-vs-cpp-handoff.md). The sole open L1 item is now the **external-validation gate** (a product/market call for the operator), not an engineering task.
 
 ---
 
@@ -113,9 +115,12 @@ v2.4.0 is *"a well-instrumented in-process coordinator of **metadata about a com
 |---|---|---|
 | **A — Finish the pivot honestly, around the observability moat** | Fix the 7 ship-blockers; **wire `EnhancedObservationManager` into the server + populate `parent_event_id`** (converts the moat from code→product); fix + authenticate the HTTP path; retire the thesis + rename the 2 overclaims; wire in KFM. | **Recommended.** Realizes the one defensible moat; most of it is wiring, not new build. |
 | **B — Make emergence *real*** | On top of A: an LLM *proposes* variants; real governance (vote/adopt + human gate); language-patterns → `emergence.py` → canary/rollback with full-transcript audit. | **Premature.** Spends the hard budget on the module with the least product pull, before the finished substrate is even persisted. Later milestone, unadvertised until real. |
-| **C — The native transport: archive / maintain-C++ / rewrite-in-Rust** | The C++ is dormant, partial, defective. Decide its fate. | **Do under any option** (below). |
+| **C — The native transport: archive / maintain-C++ / rewrite-in-Rust** | The C++ is dormant, partial, defective. Decide its fate. | ✅ **RESOLVED → archived** (PR #13, under `legacy/`). Any revival gated behind external validation — see §4a. |
 
 ### 4a. The C++/native-transport trilemma — and the Rust question
+
+> ✅ **RESOLVED (2026-07-06, PR #13) → ARCHIVED.** The C++ SDK was moved intact under [`legacy/`](../../legacy/) (for posterity), Track S2 was flagged in-source + in [`/LEGACY.md`](../../LEGACY.md), and the decision brief was widened after an independent verification re-run. **The "rewrite in Rust if kept" recommendation below is superseded** — a from-scratch Rust rewrite is the *last resort*, not the default; the cheapest-sufficient ladder (pure-Python/NumPy → FFI-vendored maintained DSP → surgical Rust hot-path) comes first, and the whole thing is gated behind external validation. The corrected reasoning is the source of truth: [`L1-native-transport-rust-vs-cpp-handoff.md`](./L1-native-transport-rust-vs-cpp-handoff.md). The original text is retained below as the audit trail.
+
 The genuinely-real part of the C++ is the acoustic/RF-denied codec (FSK/CRC/RLE) — a real niche the MCP layer can't serve. But it is **numerically broken for its own defaults** (109/256 bytes fail), Reed-Solomon is a stub, and the crypto is plaintext. So:
 - **Archive** — if constrained-transport is not a real target, delete the dead weight (and the misleading thesis/security theater it carries).
 - **Maintain as C++** — weakest option: the codec, error-correction, and crypto **all need rebuilding anyway**, so you'd be doing a rewrite *in the harder language*.
@@ -136,7 +141,7 @@ The genuinely-real part of the C++ is the acoustic/RF-denied codec (FSK/CRC/RLE)
 
 ### Track S — SECURITY (regardless of fork)
 - **S1 — Fix + authenticate the HTTP transport. [S]** First repair the `mcp.run(port=…)` `TypeError` so the path even starts; then add auth + bind-host restriction **before** it goes live. Document stdio-as-default. *(Today: latent behind the crash.)*
-- **S2 — Neutralize the dormant C++/bindings security cluster. [S]** Plaintext `encrypt()`, dead cert verify, fail-open cipher-suite, CBC-no-MAC credential store. Either delete or clearly mark non-secure/legacy so nothing claims security it lacks. Ship-blockers *iff* the native transport is revived (Track L).
+- **S2 — Neutralize the dormant C++/bindings security cluster. [S]** ✅ **DONE (PR #13):** flagged in-source — a `SECURITY WARNING` file banner + an inline plaintext-return flag in `legacy/src/core/security_manager.cpp` — and documented in [`/LEGACY.md`](../../LEGACY.md); the whole cluster is archived under `legacy/` so nothing claims security it lacks. *(Original: plaintext `encrypt()`, dead cert verify, fail-open cipher-suite, CBC-no-MAC credential store. Would become ship-blockers iff the native transport is revived — Track L.)*
 
 ### Track D — TRUTH-IN-DOCS (highest integrity-per-effort)
 - **D1 — Retire the thesis + rename the overclaims + fix the fake examples. [S]** Remove `README.md:3,9,327`; rename `claude_bridge` "language evolution"→"intent-pattern telemetry" and "Claude bridge"→"agent session registry"; delete/replace the non-compiling C++ examples (`:122-162`); add a per-component status matrix (use §2).
@@ -151,7 +156,7 @@ The genuinely-real part of the C++ is the acoustic/RF-denied codec (FSK/CRC/RLE)
 - **M2 — Wire in KFM. [S]** Surface `kfm_lifecycle.py` as MCP tools.
 
 ### Track L — NATIVE TRANSPORT (§4a trilemma)
-- **L1 — Decide archive / maintain-C++ / **rewrite-in-Rust**. [S decision, L if rewrite]** If kept, rewrite the live kernel (FSK/CRC/RLE + real crypto + real transport) in **Rust** (PyO3/maturin; RustCrypto); fix the FSK Nyquist/aliasing defect and the Reed-Solomon stub as part of it. Do not overstate the current codec as a working modem.
+- **L1 — Decide archive / maintain-C++ / rewrite-in-Rust. [S decision]** ✅ **RESOLVED → ARCHIVED (PR #13).** The C++ is dormant/partial/defective; a revival is a rewrite regardless, so it was archived under `legacy/` rather than maintained. **The sole remaining item is the external-validation gate — a product/market call for the operator, not an engineering task:** a one-page use-case memo → 3–5 discovery calls seeking a *named partner / LOI / funded pilot* → a weekend de-risking spike on an *existing* DSP library (not a rewrite), with a pre-committed kill criterion ("no co-funded pilot in 60 days → stay archived"). **Only on a validated "yes"**, build the *cheapest sufficient* transport — pure-Python/NumPy → FFI-vendored maintained DSP → surgical Rust hot-path — with a full Rust+PyO3 rewrite reserved as the evidence-gated **last resort**, gated behind a bit-exact conformance corpus. Playbook + corrected reasoning: [`L1-native-transport-rust-vs-cpp-handoff.md`](./L1-native-transport-rust-vs-cpp-handoff.md).
 
 ---
 
