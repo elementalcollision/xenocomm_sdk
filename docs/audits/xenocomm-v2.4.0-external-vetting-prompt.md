@@ -29,6 +29,28 @@ Chimera's review reaches, in brief:
 
 Your charges test whether this picture holds, whether a stronger opposing case exists, and what the project *actually is* underneath the naming.
 
+### 1a. The review's adversarial arguments — inlined so this prompt is self-contained (for Charge V2)
+
+> If you were handed only this prompt: the full companion review is committed at **`docs/audits/xenocomm-review-and-action-plan-2026-07-06.md`** in the same repo — read it. But you should not have to, to argue against it. The arguments Charge V2 must engage (review §3–§4) are summarized here:
+> - **§3.1 — Efficiency thesis abandoned.** The README's "efficiency over human readability" thesis is contradicted by an MCP/JSON-RPC product, and was mis-aimed for cloud LLM agents (transport bytes ≪ inference cost).
+> - **§3.2 — Governed-emergence promise unmet.** The observability pivot is the right instinct, but "language evolution" calls no model, governance is dead code, and logged hashes are telemetry, not an auditable transcript.
+> - **§3.3 — Alignment on toy inputs.** `alignment.py` is a genuine attempt at heterogeneous-agent mutual understanding, but is only exercised on `random.choice` agents.
+> - **§3.4 — Additive value.** What is agent-coordination-as-an-MCP-tool additive over vanilla MCP + a standard orchestration framework?
+> - **§3.5 — Docs-integrity gap.** A "Claude bridge" with no Claude; "emergence" with no generator.
+> - **§4 — Strategic fork.** (A) finish honestly · (B) make emergence real · (C) archive the C++. The review recommends A.
+
+---
+
+## Charge V0 — Independent blind recon (do this FIRST, before you read C1–C10)
+
+**Anchoring is the single biggest threat to this vetting.** Charge V1 hands you Chimera's exact map of the territory (C1–C10). If you read it first, you will tend to color inside its lines and become a confirmation-checker. So **before** you open §2:
+
+1. From the **source tree + READMEs only**, derive your **own top-5 findings** about XenoComm v2.4.0 — the things you would flag if Chimera's review did not exist. Anchor each to `file:line`.
+2. **Seal them** in your report as "V0 blind findings." You may not edit them after reading §2.
+3. *Then* read §2, and mark each blind finding as **matches a Chimera claim (which one)**, **new / missed by Chimera**, or **contradicts Chimera**.
+
+The empirical case for this pass: in the first run of this fleet, the anchored verifiers (V1) merely confirmed all 10 claims, while the **un-anchored ontology pass surfaced the one ship-blocker Chimera had missed** (`VariantStatus.FAILED`, `emergence.py:1008`, live-reachable via `get_emergence_learning_insights`). Blind recon is where missed findings come from. **Deliver:** your sealed V0 top-5 + the match/new/contradicts mapping.
+
 ---
 
 ## 2. Charge V1 — Verify the findings (adversarial)
@@ -49,12 +71,14 @@ Your charges test whether this picture holds, whether a stronger opposing case e
 | C4 | `workflows.py` references `alignment.contexts` at **9 sites**; `AlignmentEngine` defines `registered_agents`, not `contexts` → `AttributeError` at runtime on onboarding/negotiation/recovery workflows. | `workflows.py:227,242,243,686,859,860,886,887,893,894`; `alignment.py:200` |
 | C5 | `InstrumentedEmergenceEngine.rollback` treats a `RollbackPoint` dataclass / `None` as a dict, breaking `rollback_variant`. | `instrumented.py:327-336` |
 | C6 | The orchestrator treats `should_rollback`'s **tuple** return as a bool → rollback always fires. | `orchestrator.py:528, 578` |
-| C7 | `run_server` starts FastMCP **streamable-http with no auth** → all ~60 tools reachable unauthenticated over the port. | `server.py:1826` |
+| C7 | `run_server` starts FastMCP **streamable-http with no auth** → all ~65 tools reachable unauthenticated over the port (flag is `--http`). **Also judge:** is this an *intentional* deferral to an infra auth layer (reverse proxy / `mcp-proxy` / Unix socket) that is **documented**, or an undocumented oversight? The verdict on severity turns on that. | `server.py:1826`; READMEs |
 | C8 | `emergence.py` **never generates** a variant — `propose_variant` stores a caller-supplied `changes` dict; no evolutionary/generative step exists. | `emergence.py` (`propose_variant`) |
 | C9 | The **README contradicts the product** — still advertises "computational efficiency… over human readability" + the C++ SDK, while the shipping product is a standard, human-readable MCP/JSON-RPC server. | `README.md` top; `mcp_server/README` |
-| C10 | **No committed secrets** remain (the Perplexity key was scrubbed from history); only placeholders remain in `.env.example`/`.cursor`. | tracked tree; `git log -p` |
+| C10 | **No committed secrets remain** in the tracked tree; only placeholders remain in `.env.example`/`.cursor`. *(Report the clean end-state; do not assert "the scrub is confirmed" — greps over current history cannot prove a key once existed and was removed.)* | tracked tree; `git log -p` |
+| C11 | **Repo / C++ vitality.** Is the C++ genuinely inert, or maintained on a branch/fork? "Vestigial" is a claim about the **shipping wheel**, not the whole codebase — verify that distinction. Check for recent C++ commits, CI that builds/tests it, and any branch/tag that links it into a product. | `git log --all --graph --oneline --decorate`; `.github/workflows/`; `CMakeLists.txt` |
+| C12 | **Dependency supply-chain.** Audit the deps (`mcp`, `rich`, transitives) for typo-squatting, unpinned/floor-only ranges, and known-vulnerable versions; note the absence of hashes/lockfile. | `mcp_server/pyproject.toml`; `requirements.txt` |
 
-**Reproduce where you can.** C4/C5/C6 should be triggered (import the module, call the path, observe the error). C7 should be probed (start the server on `--transport http`, attempt an unauthenticated tool call; use timeouts; do not leave a server running). C1/C3/C10 are grep-decidable against the tree. C2/C8/C9 are read-and-judge. **Read-only: do not modify, commit, or push anything.**
+**Static-first, live-second, sandbox-always.** Static / `ast` / grep evidence is the **floor** for every claim — e.g. for C7, trace the auth-middleware path in source *before* binding any listener. Live reproduction (triggering the C4/C5/C6 runtime errors; probing C7) is *higher-value confirmation* but is **opt-in and sandbox-gated**: run only in a disposable/loopback environment, bind a high random port, wrap in a hard timeout, and then **verify** the process is gone (`pgrep`/`ps`) — do not merely hope. C1/C3/C10/C12 are grep-decidable; C2/C8/C9 are read-and-judge. If your environment cannot safely run the code, say so and fall back to static — a static verdict that shows its work beats an unsafe live one. (Environment note in §5.) **Read-only: do not modify, commit, or push anything.**
 
 **Deliver:** one row per claim — `{id, verdict, evidence:[file:line], reproduction (command + observed result, or "static"), correction (if IMPRECISE/REFUTED)}` — plus any **finding Chimera missed**.
 
@@ -95,14 +119,21 @@ Address at least:
 ## 5. Rules of engagement (all charges)
 
 1. **Anchor everything to `file:line` at HEAD `6993158`.** No claim without a locatable referent.
-2. **Reproduce runtime claims.** Prefer a command + observed output over an argument from reading. Use timeouts; leave no processes running; change nothing on disk.
+2. **Static first; reproduce only in a sandbox.** Static / `ast` / grep is the floor for every claim. Live reproduction is opt-in, loopback-only, high-random-port, hard-timeout, and you must *verify* no process survives afterward. Change nothing on disk. A well-shown static verdict beats an unsafe live one.
 3. **Interrogate the instrument — including this document and Chimera's review.** Your highest-value output is a place where the review is wrong, imprecise, or missing something.
 4. **Read-only.** Do not modify, commit, push, or open PRs against the target repo. You produce a report; humans decide what lands.
-5. **Attribution & posture.** This is human-in-the-loop agent work. Attribute your report to your agent persona; **do not** add tool/vendor/"Claude Code"/Anthropic attribution or AI co-author trailers. If two agents co-sign, use the form "Reviewed by <Agent A> and <Agent B>, independently authorized agents."
+5. **Provenance & posture — transparent, not opaque.** This is autonomous-agent work under human-in-the-loop review, and your report must **say so**. Head it with: `Reviewed by <Agent Persona> — autonomous agent, human-in-the-loop`. Attribute to the accountable **agent persona** — the entity that can be re-queried and held to its findings — and omit vendor/tool co-author trailers ("Claude Code" / Anthropic / model name): those name the substrate, not the reviewer, and add no accountability. Provenance-as-agent is *disclosed*; only the tool-brand trailer is dropped. Two co-signers: `Reviewed by <A> and <B> — independently authorized agents, human-in-the-loop`.
 6. **Return structured findings**, not prose essays, in the shapes specified per charge, so results compose across the fleet.
+7. **Environment note.** The reference run reproduced C4–C7 under Python 3.14 with `mcp` 1.28.1 (floor `>=1.20`); the `mcp_server` wheel builds with `hatchling` (no C++ toolchain needed). If your environment diverges, report an `ImportError` / build failure as an *environment* result, kept distinct from the finding's verdict.
 
 ---
 
 ## 6. What "good" looks like
 
-A vetting pass is successful if it returns: a corrected findings table (with at least one verdict Chimera would have to change, if one exists), the strongest surviving counter-thesis, and an ontology sharp enough to decide the strategic fork on. A pass that merely says "confirmed, confirmed, confirmed" has not tried hard enough to refute — say what you *attempted* to break and could not.
+A vetting pass is successful if it returns: your sealed V0 blind findings, a corrected findings table, the strongest surviving counter-thesis, and an ontology sharp enough to decide the strategic fork on. **Honest confirmation is worth exactly as much as refutation** — the standard is *rigor*, not manufactured dissent. If a claim survives your best attempt to break it, CONFIRM it and **show the work**: what you tried, what would have falsified it, why it held. Do **not** downgrade to IMPRECISE to look diligent — a 10/10-CONFIRMED pass that documents its refutation attempts is a strong result; a pass that invents nitpicks to avoid unanimity is a weak one. The highest-value single output remains a place where the review is genuinely wrong, imprecise, or incomplete — and if you found none after trying hard, say *that*, plainly.
+
+---
+
+## Revision log
+
+- **v2 (2026-07-06)** — Revised after an external model review of v1. Added **Charge V0 (blind recon)** to counter anchoring bias — empirically justified: v1's first fleet run confirmed all 10 anchored claims but found the one *missed* bug only via the un-anchored ontology pass. Inlined the review's §3–§4 arguments (§1a) so the counter-thesis charge is fulfillable from this prompt alone. Made reproduction **static-first / sandbox-gated** with an environment note. Reframed §6 so honest confirmation counts equal to refutation (removing the incentive to manufacture dissent). Replaced the attribution rule with a **transparent provenance header** (`Reviewed by <persona> — autonomous agent, human-in-the-loop`): agent authorship is disclosed; only the vendor/tool trailer is dropped. Added **C11 (repo/C++ vitality)** and **C12 (dependency supply-chain)**, and sharpened **C7** to ask whether the no-auth HTTP is documented design or oversight.
