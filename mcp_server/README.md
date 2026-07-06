@@ -43,6 +43,22 @@ xenocomm-mcp
 xenocomm-mcp --http --port 8000
 ```
 
+### Observability
+
+Every interaction is captured as a typed flow event with causal links. The
+analytics engine (per-flow/agent metrics, throughput trend, anomaly detection)
+runs in-process and is queryable via the `get_flow_analytics` tool.
+
+To also **persist** the flow trail to disk as gzip-JSONL (for replay/audit),
+set an output directory:
+
+```bash
+XENOCOMM_FLOW_LOG_DIR=./flow_logs xenocomm-mcp
+```
+
+When unset (the default), analytics still run in memory but nothing is written
+to disk. The buffer is flushed on process exit.
+
 ### Configuring Claude Code
 
 Add to your `claude_code_config.json`:
