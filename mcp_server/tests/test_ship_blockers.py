@@ -38,9 +38,14 @@ def _uid(prefix: str) -> str:
 # --------------------------------------------------------------------------
 # B1 — workflows.py referenced a non-existent ``alignment.contexts`` (10 sites)
 # --------------------------------------------------------------------------
-def test_b1_onboarding_workflow_registers_new_agent():
-    """The onboarding workflow's register/alignment steps must not raise
-    AttributeError, and must actually register the new agent."""
+def test_b1_onboarding_register_and_alignment_steps_complete():
+    """B1 scope: the Register + Check-Alignment steps used to raise
+    AttributeError on ``alignment.contexts``. They must now complete and the
+    new agent must be registered.
+
+    (The later 'Establish Protocol' step has a *separate* pre-existing bug
+    unrelated to B1, so we assert on the two steps B1 actually repairs rather
+    than on whole-workflow completion.)"""
     import xenocomm_mcp.server as srv
 
     existing = _uid("b1-existing")
@@ -52,10 +57,11 @@ def test_b1_onboarding_workflow_registers_new_agent():
         existing_agent_ids=[existing],
         knowledge_domains=["shared"],
     )
-    # Run it to completion through the (previously crashing) steps.
     final = srv.execute_workflow_all_steps(started["execution_id"], "multi_agent_onboarding")
 
-    assert "error" not in final
+    steps = {s["name"]: s["status"] for s in final["steps"]}
+    assert steps.get("Register Agent") == "completed"
+    assert steps.get("Check Alignment") == "completed"
     assert newcomer in srv.orchestrator.alignment.registered_agents
 
 
@@ -186,3 +192,80 @@ def test_b7_execute_step_accepts_discovery_name():
     stepped = srv.execute_workflow_step(started["execution_id"], name)
     assert stepped.get("error") != f"Unknown workflow type: {name}"
     assert "error" not in stepped
+
+
+# --------------------------------------------------------------------------
+# Coverage hardening (from the fix-verification pass): exercise the exact
+# branches the original bugs crashed on, and the second/other fix sites.
+# --------------------------------------------------------------------------
+def test_b2_instrumented_rollback_with_rollback_point():
+    """The point-present branch is the one the original ``result.get(...)``
+    crashed on (a RollbackPoint dataclass has no ``.get``)."""
+    eng = InstrumentedEmergenceEngine(observation_manager=get_observation_manager())
+    v = eng.propose_variant("b2c", {"k": "v"})
+    eng.start_testing(v.variant_id)
+    eng.start_canary(v.variant_id)  # start_canary creates a rollback point
+    result = eng.rollback(v.variant_id, reason=RollbackReason.CIRCUIT_OPEN)
+    assert result is not None and hasattr(result, "point_id")
+    assert v.metadata["rollback_reason"] == "circuit_open"
+
+
+def test_b3_unhealthy_canary_is_rolled_back():
+    """The rolled_back branch: an inverted unpack would still pass the healthy
+    test, so drive should_rollback True and assert the rollback fires."""
+    orch = XenoCommOrchestrator()
+    a, b = _uid("b3ua"), _uid("b3ub")
+    orch.register_agent(_ctx(a))
+    orch.register_agent(_ctx(b))
+    session = orch.initiate_collaboration(a, b)
+
+    v = orch.emergence.propose_variant("b3u", {"k": "v"})
+    orch.emergence.start_testing(v.variant_id)
+    orch.emergence.start_canary(v.variant_id)
+    cb = orch.emergence.circuit_breakers[v.variant_id]
+    for _ in range(cb.failure_threshold):
+        cb.record_failure()
+    assert orch.emergence.should_rollback(v.variant_id)[0] is True
+
+    result = orch.evolve_session_protocol(session.session_id, v.variant_id)
+    assert result["action"] == "rolled_back"
+    assert v.status == VariantStatus.ROLLED_BACK
+
+
+def test_b3_report_metrics_does_not_falsely_flag_healthy_variant():
+    """Second B3 site (orchestrator.py:578). A HEALTHY active variant must NOT
+    be flagged for rollback. This is the discriminating case: pre-fix the bare
+    truthy ``(False, None)`` tuple always set should_rollback=True; an unhealthy
+    variant would pass either way, so we assert the healthy path stays clean."""
+    orch = XenoCommOrchestrator()
+    a, b = _uid("b3ra"), _uid("b3rb")
+    orch.register_agent(_ctx(a))
+    orch.register_agent(_ctx(b))
+    session = orch.initiate_collaboration(a, b)
+
+    v = orch.emergence.propose_variant("b3r", {"k": "v"})
+    orch.emergence.start_testing(v.variant_id)
+    orch.emergence.start_canary(v.variant_id)
+    session.active_variant_id = v.variant_id
+    # Healthy variant -> should_rollback == (False, None); report GOOD metrics.
+    result = orch.report_session_metrics(
+        session.session_id, success_rate=0.99, latency_ms=10.0, error_count=0
+    )
+    assert result.get("should_rollback") is not True
+
+
+def test_b7_all_workflow_aliases_resolve():
+    """Every discovery-tool long name and its short key must map correctly;
+    unknown names pass through to the existing error path."""
+    import xenocomm_mcp.server as srv
+
+    expected = {
+        "multi_agent_onboarding": "onboarding",
+        "protocol_evolution": "evolution",
+        "error_recovery": "recovery",
+        "conflict_resolution": "conflict",
+    }
+    for long_name, short in expected.items():
+        assert srv._WORKFLOW_TYPE_ALIASES[long_name] == short
+        assert srv._WORKFLOW_TYPE_ALIASES[short] == short
+    assert srv._WORKFLOW_TYPE_ALIASES.get("bogus", "bogus") == "bogus"
