@@ -636,11 +636,12 @@ def track_variant_performance(
     )
 
     variant = emergence_engine.track_performance(variant_id, metrics)
-    should_rollback = emergence_engine.should_rollback(variant_id)
+    should_rb, rb_reason = emergence_engine.should_rollback(variant_id)
 
     return {
         "variant": variant.to_dict(),
-        "should_rollback": should_rollback,
+        "should_rollback": should_rb,
+        "rollback_reason": rb_reason.value if rb_reason else None,
         "metrics_recorded": metrics.to_dict(),
     }
 
@@ -1028,10 +1029,16 @@ def initiate_collaboration(
     session = orchestrator.initiate_collaboration(
         agent_a_id,
         agent_b_id,
-        NegotiableParams.from_dict(proposed_params) if proposed_params else None,
-        required_alignment_score,
+        proposed_params=proposed_params,  # raw dict; the orchestrator does from_dict internally
     )
-    return session.to_dict()
+    result = session.to_dict()
+    # The orchestrator gates alignment via config; honor the caller's per-call
+    # required_alignment_score by reporting whether it was met, rather than
+    # silently dropping it (it was previously misrouted into proposed_params).
+    result["alignment_sufficient"] = (
+        session.metrics.alignment_score >= required_alignment_score
+    )
+    return result
 
 
 @mcp.tool()

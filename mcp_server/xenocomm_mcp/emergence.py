@@ -617,10 +617,12 @@ class EmergenceEngine:
         variant = self._get_variant(variant_id)
         circuit = self.circuit_breakers[variant_id]
 
+        should_rb, rb_reason = self.should_rollback(variant_id)
         return {
             "variant": variant.to_dict(),
             "circuit_breaker": circuit.to_dict(),
-            "should_rollback": self.should_rollback(variant_id),
+            "should_rollback": should_rb,
+            "rollback_reason": rb_reason.value if rb_reason else None,
             "can_proceed": circuit.can_proceed(),
         }
 
