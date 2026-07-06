@@ -276,8 +276,17 @@ class MultiAgentOnboardingWorkflow:
 
         for agent_id, session_id in sessions.items():
             session = self.orchestrator.negotiation.get_session_status(session_id)
-            # For demo, auto-finalize with proposed params
+            # Auto-accept on the responder's behalf, then finalize as the
+            # initiator. finalize_session requires AWAITING_FINALIZATION, so the
+            # state machine must be driven in order rather than finalized
+            # straight from AWAITING_RESPONSE (which raises).
             if session.state == NegotiationState.AWAITING_RESPONSE:
+                self.orchestrator.negotiation.receive_proposal(
+                    session_id, session.responder_id
+                )
+                self.orchestrator.negotiation.respond_accept(
+                    session_id, session.responder_id
+                )
                 session = self.orchestrator.negotiation.finalize_session(
                     session_id=session_id,
                     initiator_id=session.initiator_id,
