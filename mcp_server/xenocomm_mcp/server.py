@@ -47,6 +47,8 @@ from .instrumented import (
 )
 import os
 import atexit
+import logging
+import hmac
 
 from .observation import get_observation_manager, set_observation_manager
 from .analytics import EnhancedObservationManager
@@ -1890,18 +1892,82 @@ def get_active_claude_sessions() -> dict[str, Any]:
 # SERVER ENTRY POINT
 # =============================================================================
 
-def run_server(transport: str = "stdio", port: int = 8000):
+def _is_loopback_host(host: str) -> bool:
+    """True if host is loopback-only (not reachable from the network)."""
+    return host in ("127.0.0.1", "::1", "localhost", "")
+
+
+class _BearerAuthASGI:
+    """Pure-ASGI wrapper that rejects HTTP requests lacking the expected
+    ``Authorization: Bearer <token>`` header with 401. Non-HTTP scopes
+    (lifespan / websocket) pass through untouched."""
+
+    def __init__(self, app, token: str):
+        self._app = app
+        self._expected = f"Bearer {token}".encode()
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            provided = dict(scope.get("headers") or []).get(b"authorization", b"")
+            # constant-time compare so the token can't be recovered by timing
+            if not hmac.compare_digest(provided, self._expected):
+                await send({
+                    "type": "http.response.start",
+                    "status": 401,
+                    "headers": [(b"content-type", b"application/json")],
+                })
+                await send({
+                    "type": "http.response.body",
+                    "body": b'{"error": "unauthorized"}',
+                })
+                return
+        await self._app(scope, receive, send)
+
+
+def _build_http_app(token: str | None):
+    """The streamable-http ASGI app, wrapped in bearer-token auth when a token
+    is configured."""
+    app = mcp.streamable_http_app()
+    if token:
+        app = _BearerAuthASGI(app, token)
+    return app
+
+
+def run_server(transport: str = "stdio", host: str = "127.0.0.1", port: int = 8000):
     """
     Run the XenoComm MCP server.
 
     Args:
         transport: "stdio" or "streamable-http"
+        host: Bind address for HTTP transport (default 127.0.0.1, loopback-only)
         port: Port for HTTP transport (default 8000)
+
+    HTTP auth: set ``XENOCOMM_HTTP_TOKEN`` to require an
+    ``Authorization: Bearer <token>`` header on every request. Binding to a
+    non-loopback host without a token is refused (fail closed) — set a token or
+    front the server with an authenticating proxy.
     """
-    if transport == "streamable-http":
-        mcp.run(transport="streamable-http", port=port)
-    else:
+    if transport != "streamable-http":
         mcp.run()
+        return
+
+    token = os.environ.get("XENOCOMM_HTTP_TOKEN")
+    if not _is_loopback_host(host) and not token:
+        raise SystemExit(
+            f"Refusing to expose the HTTP transport on {host!r} without "
+            "authentication.\nSet XENOCOMM_HTTP_TOKEN to require a bearer token, "
+            "bind to 127.0.0.1, or front the server with an authenticating proxy."
+        )
+    if not token:
+        logging.getLogger(__name__).warning(
+            "HTTP transport on %s:%s has NO authentication; this is only safe "
+            "because it is loopback-only. Set XENOCOMM_HTTP_TOKEN to require a "
+            "bearer token.", host, port,
+        )
+
+    import uvicorn
+
+    uvicorn.run(_build_http_app(token), host=host, port=port)
 
 
 if __name__ == "__main__":

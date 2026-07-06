@@ -43,6 +43,21 @@ xenocomm-mcp
 xenocomm-mcp --http --port 8000
 ```
 
+### HTTP Authentication
+
+The HTTP transport binds to `127.0.0.1` (loopback) by default and is **not**
+exposed to the network. To require authentication, set a bearer token:
+
+```bash
+XENOCOMM_HTTP_TOKEN=your-secret xenocomm-mcp --http --port 8000
+# clients must then send:  Authorization: Bearer your-secret
+```
+
+Binding to a public address (`--host 0.0.0.0`) **without** a token is refused
+(fail-closed) — set `XENOCOMM_HTTP_TOKEN` or front the server with an
+authenticating proxy. The default `stdio` transport (used by Claude Code) is not
+network-exposed and needs no token.
+
 ### Observability
 
 Every interaction is captured as a typed flow event with causal links. The

@@ -239,13 +239,14 @@ def get_mcp_server():
     return mcp
 
 
-def run_server(transport: str = "stdio", port: int = 8000):
+def run_server(transport: str = "stdio", host: str = "127.0.0.1", port: int = 8000):
     """
     Run the XenoComm MCP server.
 
     Args:
         transport: "stdio" or "streamable-http"
+        host: Bind address for HTTP transport (default 127.0.0.1, loopback-only)
         port: Port for HTTP transport (default 8000)
     """
     from .server import run_server as _run_server
-    _run_server(transport=transport, port=port)
+    _run_server(transport=transport, host=host, port=port)
