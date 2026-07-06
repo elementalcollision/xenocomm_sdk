@@ -46,6 +46,7 @@ from .instrumented import (
     InstrumentedWorkflowManager,
 )
 import os
+import atexit
 
 from .observation import get_observation_manager, set_observation_manager
 from .analytics import EnhancedObservationManager
@@ -67,6 +68,11 @@ _obs_manager = EnhancedObservationManager(
 )
 set_observation_manager(_obs_manager)
 _obs_manager.start()
+
+# The persistence buffer only writes on a size threshold or an explicit
+# flush/stop. Flush it on process exit so a normal shutdown does not drop the
+# buffered tail (and so short-lived runs still persist their events).
+atexit.register(_obs_manager.stop)
 
 # Initialize the instrumented orchestrator (with observation)
 orchestrator = InstrumentedOrchestrator(observation_manager=_obs_manager)

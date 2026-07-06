@@ -42,6 +42,11 @@ def causal_scope(parent_event_id: str | None):
         _current_parent_event_id.reset(token)
 
 
+# Sentinel so emit() distinguishes "caller omitted parent_event_id" (inherit the
+# ambient causal scope) from an explicit None (force a root, no parent).
+_UNSET: Any = object()
+
+
 # ==================== Event Types ====================
 
 class FlowType(Enum):
@@ -273,13 +278,14 @@ class FlowSensor(ABC):
              metrics: dict[str, Any] | None = None,
              severity: EventSeverity = EventSeverity.INFO,
              tags: list[str] | None = None,
-             parent_event_id: str | None = None) -> FlowEvent:
+             parent_event_id: str | None = _UNSET) -> FlowEvent:
         """Emit a flow event."""
         if not self.enabled:
             return None
 
-        # Inherit the ambient causal parent unless one was passed explicitly.
-        if parent_event_id is None:
+        # Inherit the ambient causal parent only when the caller omitted it; an
+        # explicit None means "this is a root" and is left as-is.
+        if parent_event_id is _UNSET:
             parent_event_id = _current_parent_event_id.get()
 
         event = FlowEvent(

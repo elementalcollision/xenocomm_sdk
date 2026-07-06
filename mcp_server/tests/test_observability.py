@@ -99,3 +99,36 @@ def test_e1_causal_scope_context_manager():
     with causal_scope("root-123"):
         assert _current_parent_event_id.get() == "root-123"
     assert _current_parent_event_id.get() is None  # reset on exit
+
+
+# --- durability + sentinel (from the verification pass) ---------------------
+def test_e1_persistence_buffer_flushes_on_stop(tmp_path):
+    """A short run (fewer than buffer_size events) must still reach disk when
+    the manager stops — the server registers stop() on atexit so a normal
+    shutdown does not silently drop the buffered tail."""
+    mgr = EnhancedObservationManager(persist_to=str(tmp_path))
+    mgr.start()
+    for i in range(5):
+        mgr.agent_sensor.agent_registered(
+            agent_id=f"buf{i}", capabilities=[], domains=["d"]
+        )
+    # Below the buffer threshold -> still buffered, nothing on disk yet.
+    assert not list(Path(tmp_path).glob("flows_*"))
+    mgr.stop()  # exactly what atexit invokes on the server
+    assert list(Path(tmp_path).glob("flows_*")), "stop() must flush to disk"
+
+
+def test_e1_explicit_none_parent_forces_root():
+    """The _UNSET sentinel lets an explicit None mean 'root' even inside a
+    causal scope, distinct from an omitted arg (which inherits the scope)."""
+    from xenocomm_mcp.observation import causal_scope
+
+    sensor = srv._obs_manager.agent_sensor
+    with causal_scope("scope-root"):
+        inherited = sensor.agent_registered(
+            agent_id=_uid("inh"), capabilities=[], domains=["d"]
+        )
+        explicit_root = sensor.emit("custom_root", "x", parent_event_id=None)
+
+    assert inherited.parent_event_id == "scope-root"  # omitted -> inherits
+    assert explicit_root.parent_event_id is None       # explicit None -> root
