@@ -16,7 +16,7 @@ from __future__ import annotations
 import uuid
 import json
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any, Callable
 from enum import Enum
@@ -170,7 +170,7 @@ class LanguageEvolutionEngine:
             event_id=str(uuid.uuid4()),
             flow_type=FlowType.COLLABORATION,
             event_name="agent_message",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             source_agent=message.from_agent,
             target_agent=message.to_agent,
             session_id=session_id,
@@ -210,7 +210,7 @@ class LanguageEvolutionEngine:
                         pattern_id=pattern_id,
                         name=self._generate_pattern_name(seq),
                         description=f"Detected sequence: {' → '.join(seq)}",
-                        detected_at=datetime.utcnow(),
+                        detected_at=datetime.now(timezone.utc),
                         occurrence_count=len(sessions),
                         participating_agents=set(),  # Will be populated
                         intent_sequence=list(seq),
@@ -346,7 +346,7 @@ class ClaudeAgentBridge:
     ) -> ClaudeAgentSession:
         """Register a Claude agent and create a session."""
         session_id = str(uuid.uuid4())
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         session = ClaudeAgentSession(
             session_id=session_id,
@@ -413,7 +413,7 @@ class ClaudeAgentBridge:
         if not session:
             raise ValueError(f"Unknown session: {session_id}")
 
-        session.last_active = datetime.utcnow()
+        session.last_active = datetime.now(timezone.utc)
         session.message_count += 1
 
         # Create message with content hash
@@ -421,7 +421,7 @@ class ClaudeAgentBridge:
             message_id=str(uuid.uuid4()),
             from_agent=session.agent_id,
             to_agent=to_agent,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             message_type=message_type,
             content_hash=hashlib.sha256(content.encode()).hexdigest()[:16],
             intent=intent,
@@ -502,7 +502,7 @@ class ClaudeAgentBridge:
             "construct_type": construct_type,
             "definition": definition,
             "rationale": rationale,
-            "proposed_at": datetime.utcnow().isoformat(),
+            "proposed_at": datetime.now(timezone.utc).isoformat(),
             "status": "proposed",
             "votes": {"for": 0, "against": 0},
         }

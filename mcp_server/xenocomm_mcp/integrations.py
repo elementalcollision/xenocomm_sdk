@@ -14,7 +14,7 @@ import json
 import hashlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Optional
 import threading
@@ -57,8 +57,8 @@ class ExternalAgent:
     external_id: str  # ID in the external system
     capabilities: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
-    registered_at: datetime = field(default_factory=datetime.utcnow)
-    last_seen: datetime = field(default_factory=datetime.utcnow)
+    registered_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -139,7 +139,7 @@ class IntegrationBridge(ABC):
                     event_id=f"error-{event.event_id}",
                     flow_type=FlowType.SYSTEM,
                     event_name="integration_handler_error",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     summary=f"Error in {self.name} handler: {str(e)}",
                     severity=EventSeverity.ERROR,
                     tags=[self.name, "error"],
@@ -208,10 +208,10 @@ class OpenClawBridge(IntegrationBridge):
             self.status = IntegrationStatus.CONNECTING
 
             self.obs.event_bus.publish(FlowEvent(
-                event_id=f"openclaw-connect-{datetime.utcnow().timestamp()}",
+                event_id=f"openclaw-connect-{datetime.now(timezone.utc).timestamp()}",
                 flow_type=FlowType.SYSTEM,
                 event_name="integration_connecting",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 summary=f"Connecting to OpenClaw gateway at {self.config.gateway_url}",
                 tags=["openclaw", "connection"],
             ))
@@ -226,10 +226,10 @@ class OpenClawBridge(IntegrationBridge):
         except Exception as e:
             self.status = IntegrationStatus.ERROR
             self.obs.event_bus.publish(FlowEvent(
-                event_id=f"openclaw-error-{datetime.utcnow().timestamp()}",
+                event_id=f"openclaw-error-{datetime.now(timezone.utc).timestamp()}",
                 flow_type=FlowType.SYSTEM,
                 event_name="integration_error",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 summary=f"OpenClaw connection failed: {str(e)}",
                 severity=EventSeverity.ERROR,
                 tags=["openclaw", "error"],
@@ -270,7 +270,7 @@ class OpenClawBridge(IntegrationBridge):
                     event_id=f"openclaw-listen-error",
                     flow_type=FlowType.SYSTEM,
                     event_name="listener_error",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     summary=f"OpenClaw listener error: {str(e)}",
                     severity=EventSeverity.WARNING,
                     tags=["openclaw", "listener"],
@@ -284,7 +284,7 @@ class OpenClawBridge(IntegrationBridge):
             event_id=data.get("id", hashlib.md5(json.dumps(data).encode()).hexdigest()[:16]),
             source_system="openclaw",
             event_type=event_type,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             payload=data,
             raw_data=data,
         )
@@ -462,10 +462,10 @@ class ClaudeFlowBridge(IntegrationBridge):
             self.status = IntegrationStatus.CONNECTING
 
             self.obs.event_bus.publish(FlowEvent(
-                event_id=f"claude-flow-connect-{datetime.utcnow().timestamp()}",
+                event_id=f"claude-flow-connect-{datetime.now(timezone.utc).timestamp()}",
                 flow_type=FlowType.SYSTEM,
                 event_name="integration_connecting",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 summary="Connecting to Claude-Flow EventBus",
                 tags=["claude_flow", "connection"],
             ))

@@ -17,7 +17,7 @@ Workflows:
 from dataclasses import dataclass, field
 from typing import Any, Callable
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from .alignment import AlignmentEngine, AgentContext, AlignmentStatus
@@ -160,7 +160,7 @@ class MultiAgentOnboardingWorkflow:
         )
 
         execution.status = WorkflowStatus.RUNNING
-        execution.started_at = datetime.utcnow()
+        execution.started_at = datetime.now(timezone.utc)
         self.executions[execution.execution_id] = execution
 
         return execution
@@ -174,12 +174,12 @@ class MultiAgentOnboardingWorkflow:
 
         if execution.current_step_index >= len(execution.steps):
             execution.status = WorkflowStatus.COMPLETED
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = datetime.now(timezone.utc)
             return execution
 
         step = execution.steps[execution.current_step_index]
         step.status = WorkflowStatus.RUNNING
-        step.started_at = datetime.utcnow()
+        step.started_at = datetime.now(timezone.utc)
 
         try:
             if step.step_id == "register":
@@ -197,13 +197,13 @@ class MultiAgentOnboardingWorkflow:
 
             step.result = result
             step.status = WorkflowStatus.COMPLETED
-            step.completed_at = datetime.utcnow()
+            step.completed_at = datetime.now(timezone.utc)
             execution.current_step_index += 1
 
             # Check if workflow is complete
             if execution.current_step_index >= len(execution.steps):
                 execution.status = WorkflowStatus.COMPLETED
-                execution.completed_at = datetime.utcnow()
+                execution.completed_at = datetime.now(timezone.utc)
 
         except Exception as e:
             step.status = WorkflowStatus.FAILED
@@ -304,7 +304,7 @@ class MultiAgentOnboardingWorkflow:
         # In real implementation, this would test actual connectivity
         return {
             "connectivity_verified": True,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def _get_execution(self, execution_id: str) -> WorkflowExecution:
@@ -376,7 +376,7 @@ class ProtocolEvolutionWorkflow:
         )
 
         execution.status = WorkflowStatus.RUNNING
-        execution.started_at = datetime.utcnow()
+        execution.started_at = datetime.now(timezone.utc)
         self.executions[execution.execution_id] = execution
 
         return execution
@@ -390,12 +390,12 @@ class ProtocolEvolutionWorkflow:
 
         if execution.current_step_index >= len(execution.steps):
             execution.status = WorkflowStatus.COMPLETED
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = datetime.now(timezone.utc)
             return execution
 
         step = execution.steps[execution.current_step_index]
         step.status = WorkflowStatus.RUNNING
-        step.started_at = datetime.utcnow()
+        step.started_at = datetime.now(timezone.utc)
 
         try:
             if step.step_id == "propose":
@@ -413,12 +413,12 @@ class ProtocolEvolutionWorkflow:
 
             step.result = result
             step.status = WorkflowStatus.COMPLETED
-            step.completed_at = datetime.utcnow()
+            step.completed_at = datetime.now(timezone.utc)
             execution.current_step_index += 1
 
             if execution.current_step_index >= len(execution.steps):
                 execution.status = WorkflowStatus.COMPLETED
-                execution.completed_at = datetime.utcnow()
+                execution.completed_at = datetime.now(timezone.utc)
 
         except Exception as e:
             step.status = WorkflowStatus.FAILED
@@ -587,7 +587,7 @@ class ErrorRecoveryWorkflow:
         )
 
         execution.status = WorkflowStatus.RUNNING
-        execution.started_at = datetime.utcnow()
+        execution.started_at = datetime.now(timezone.utc)
         self.executions[execution.execution_id] = execution
 
         return execution
@@ -601,12 +601,12 @@ class ErrorRecoveryWorkflow:
 
         if execution.current_step_index >= len(execution.steps):
             execution.status = WorkflowStatus.COMPLETED
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = datetime.now(timezone.utc)
             return execution
 
         step = execution.steps[execution.current_step_index]
         step.status = WorkflowStatus.RUNNING
-        step.started_at = datetime.utcnow()
+        step.started_at = datetime.now(timezone.utc)
 
         try:
             if step.step_id == "detect":
@@ -624,12 +624,12 @@ class ErrorRecoveryWorkflow:
 
             step.result = result
             step.status = WorkflowStatus.COMPLETED
-            step.completed_at = datetime.utcnow()
+            step.completed_at = datetime.now(timezone.utc)
             execution.current_step_index += 1
 
             if execution.current_step_index >= len(execution.steps):
                 execution.status = WorkflowStatus.COMPLETED
-                execution.completed_at = datetime.utcnow()
+                execution.completed_at = datetime.now(timezone.utc)
 
         except Exception as e:
             step.status = WorkflowStatus.FAILED
@@ -807,7 +807,7 @@ class ConflictResolutionWorkflow:
         )
 
         execution.status = WorkflowStatus.RUNNING
-        execution.started_at = datetime.utcnow()
+        execution.started_at = datetime.now(timezone.utc)
         self.executions[execution.execution_id] = execution
 
         return execution
@@ -821,12 +821,12 @@ class ConflictResolutionWorkflow:
 
         if execution.current_step_index >= len(execution.steps):
             execution.status = WorkflowStatus.COMPLETED
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = datetime.now(timezone.utc)
             return execution
 
         step = execution.steps[execution.current_step_index]
         step.status = WorkflowStatus.RUNNING
-        step.started_at = datetime.utcnow()
+        step.started_at = datetime.now(timezone.utc)
 
         try:
             if step.step_id == "identify":
@@ -844,12 +844,12 @@ class ConflictResolutionWorkflow:
 
             step.result = result
             step.status = WorkflowStatus.COMPLETED
-            step.completed_at = datetime.utcnow()
+            step.completed_at = datetime.now(timezone.utc)
             execution.current_step_index += 1
 
             if execution.current_step_index >= len(execution.steps):
                 execution.status = WorkflowStatus.COMPLETED
-                execution.completed_at = datetime.utcnow()
+                execution.completed_at = datetime.now(timezone.utc)
 
         except Exception as e:
             step.status = WorkflowStatus.FAILED
@@ -975,7 +975,7 @@ class ConflictResolutionWorkflow:
         return {
             "documented": True,
             "resolution_id": execution.execution_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "conflict_type": execution.context["conflict_type"],
             "agents": [execution.context["agent_a_id"], execution.context["agent_b_id"]],
         }

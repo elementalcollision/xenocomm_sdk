@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 from enum import Enum
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import deque
 import math
 import statistics
@@ -108,7 +108,7 @@ class PerformanceMetrics:
     throughput: float = 0.0  # operations per second
     error_count: int = 0
     total_requests: int = 0
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     # Categorical error tracking
     errors_by_type: dict[str, int] = field(default_factory=dict)
     # Resource usage
@@ -155,8 +155,8 @@ class ProtocolVariant:
     description: str
     changes: dict[str, Any]
     status: VariantStatus = VariantStatus.PROPOSED
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metrics_history: list[PerformanceMetrics] = field(default_factory=list)
     canary_percentage: float = 0.0  # 0.0 to 1.0
     adoption_count: int = 0
@@ -240,7 +240,7 @@ class CircuitBreaker:
         self.failure_count += 1
         self.consecutive_failures += 1
         self.consecutive_successes = 0
-        self.last_failure_time = datetime.utcnow()
+        self.last_failure_time = datetime.now(timezone.utc)
 
         if self.consecutive_failures >= self.failure_threshold:
             self._transition_to(CircuitState.OPEN)
@@ -256,7 +256,7 @@ class CircuitBreaker:
 
         if self.state == CircuitState.OPEN:
             if self.last_failure_time:
-                elapsed = (datetime.utcnow() - self.last_failure_time).total_seconds()
+                elapsed = (datetime.now(timezone.utc) - self.last_failure_time).total_seconds()
                 if elapsed >= self.reset_timeout_seconds:
                     self._transition_to(CircuitState.HALF_OPEN)
                     self.consecutive_successes = 0
@@ -268,12 +268,12 @@ class CircuitBreaker:
     def _transition_to(self, new_state: CircuitState) -> None:
         """Track state transitions."""
         if self.state != new_state:
-            self.state_changes.append((datetime.utcnow(), new_state))
+            self.state_changes.append((datetime.now(timezone.utc), new_state))
             self.state = new_state
 
     def get_flap_count(self, window_minutes: int = 60) -> int:
         """Count state changes in the time window (detect flapping)."""
-        cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
         return sum(1 for ts, _ in self.state_changes if ts > cutoff)
 
     def is_flapping(self, threshold: int = 5, window_minutes: int = 60) -> bool:
@@ -300,7 +300,7 @@ class ABTestExperiment:
     experiment_id: str
     control_variant_id: str
     treatment_variant_id: str
-    started_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     ended_at: datetime | None = None
     traffic_split: float = 0.5  # Percentage to treatment
     control_metrics: list[PerformanceMetrics] = field(default_factory=list)
@@ -335,7 +335,7 @@ class VariantOutcome:
     duration_hours: float
     rollback_count: int
     tags: list[str]
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -344,7 +344,7 @@ class RollbackPoint:
     point_id: str
     variant_id: str
     state_snapshot: dict[str, Any]
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class EmergenceEngine:
@@ -407,7 +407,7 @@ class EmergenceEngine:
             raise ValueError(f"Can only start testing from PROPOSED status, current: {variant.status}")
 
         variant.status = VariantStatus.TESTING
-        variant.updated_at = datetime.utcnow()
+        variant.updated_at = datetime.now(timezone.utc)
 
         return variant
 
@@ -431,7 +431,7 @@ class EmergenceEngine:
 
         variant.status = VariantStatus.CANARY
         variant.canary_percentage = initial_percentage or self.config.canary_initial_percentage
-        variant.updated_at = datetime.utcnow()
+        variant.updated_at = datetime.now(timezone.utc)
 
         return variant
 
@@ -454,7 +454,7 @@ class EmergenceEngine:
             if ramp_decision == "pause":
                 variant.status = VariantStatus.PAUSED
                 variant.pause_count += 1
-                variant.updated_at = datetime.utcnow()
+                variant.updated_at = datetime.now(timezone.utc)
                 return variant
             elif ramp_decision == "slow":
                 step_size = 0.5 / self.config.canary_ramp_steps  # Half speed
@@ -466,7 +466,7 @@ class EmergenceEngine:
             step_size = 1.0 / self.config.canary_ramp_steps
 
         variant.canary_percentage = min(1.0, variant.canary_percentage + step_size)
-        variant.updated_at = datetime.utcnow()
+        variant.updated_at = datetime.now(timezone.utc)
 
         if variant.canary_percentage >= 1.0:
             variant.status = VariantStatus.ACTIVE
@@ -504,7 +504,7 @@ class EmergenceEngine:
 
         variant = self._get_variant(variant_id)
         variant.metrics_history.append(metrics)
-        variant.updated_at = datetime.utcnow()
+        variant.updated_at = datetime.now(timezone.utc)
 
         # Update circuit breaker with smarter thresholds
         circuit = self.circuit_breakers[variant_id]
@@ -602,13 +602,13 @@ class EmergenceEngine:
         for point in reversed(self.rollback_points):
             if point.variant_id == variant_id:
                 variant.status = VariantStatus.ROLLED_BACK
-                variant.updated_at = datetime.utcnow()
+                variant.updated_at = datetime.now(timezone.utc)
                 variant.metadata["rollback_reason"] = reason.value
                 return point
 
         # No rollback point found, just mark as rolled back
         variant.status = VariantStatus.ROLLED_BACK
-        variant.updated_at = datetime.utcnow()
+        variant.updated_at = datetime.now(timezone.utc)
         variant.metadata["rollback_reason"] = reason.value
         return None
 
@@ -861,7 +861,7 @@ class EmergenceEngine:
 
         if z_score >= z_threshold:
             experiment.status = "completed"
-            experiment.ended_at = datetime.utcnow()
+            experiment.ended_at = datetime.now(timezone.utc)
             experiment.confidence = min(0.99, 1 - (1 / (1 + z_score)))
 
             if treatment_mean > control_mean:
@@ -899,7 +899,7 @@ class EmergenceEngine:
 
         experiment = self.experiments[experiment_id]
         experiment.status = "completed" if winner else "inconclusive"
-        experiment.ended_at = datetime.utcnow()
+        experiment.ended_at = datetime.now(timezone.utc)
         if winner:
             experiment.winner = winner
 
@@ -909,7 +909,7 @@ class EmergenceEngine:
 
     def _record_outcome(self, variant: ProtocolVariant):
         """Record variant outcome for learning."""
-        duration = (datetime.utcnow() - variant.created_at).total_seconds() / 3600  # hours
+        duration = (datetime.now(timezone.utc) - variant.created_at).total_seconds() / 3600  # hours
 
         outcome = VariantOutcome(
             variant_id=variant.variant_id,
@@ -1067,5 +1067,5 @@ class EmergenceEngine:
             raise ValueError(f"Can only resume PAUSED variants, current: {variant.status}")
 
         variant.status = VariantStatus.CANARY
-        variant.updated_at = datetime.utcnow()
+        variant.updated_at = datetime.now(timezone.utc)
         return variant

@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 import time
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any, Callable
 from enum import Enum
@@ -147,7 +147,7 @@ class EventBus:
         self._type_subscribers: dict[FlowType, list[Callable[[FlowEvent], None]]] = {}
         self._lock = threading.RLock()
         self._event_counts: dict[str, int] = {}
-        self._start_time = datetime.utcnow()
+        self._start_time = datetime.now(timezone.utc)
 
     def publish(self, event: FlowEvent) -> None:
         """Publish an event to the bus."""
@@ -228,7 +228,7 @@ class EventBus:
         """Get event bus statistics."""
         with self._lock:
             total_events = len(self._events)
-            uptime = (datetime.utcnow() - self._start_time).total_seconds()
+            uptime = (datetime.now(timezone.utc) - self._start_time).total_seconds()
 
             type_counts = {}
             for event in self._events:
@@ -292,7 +292,7 @@ class FlowSensor(ABC):
             event_id=str(uuid.uuid4()),
             flow_type=self.get_flow_type(),
             event_name=event_name,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             severity=severity,
             source_agent=source_agent,
             target_agent=target_agent,
@@ -309,7 +309,7 @@ class FlowSensor(ABC):
     def start_span(self, span_name: str, context: dict[str, Any] | None = None) -> str:
         """Start a timed span for measuring durations."""
         span_id = str(uuid.uuid4())
-        self._active_spans[span_id] = (datetime.utcnow(), context or {})
+        self._active_spans[span_id] = (datetime.now(timezone.utc), context or {})
         return span_id
 
     def end_span(self, span_id: str, event_name: str, summary: str = "",
@@ -319,7 +319,7 @@ class FlowSensor(ABC):
             return None
 
         start_time, context = self._active_spans.pop(span_id)
-        duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         # Merge context into kwargs
         merged_kwargs = {**context, **kwargs}
@@ -645,7 +645,7 @@ class ObservationManager:
             event_id=str(uuid.uuid4()),
             flow_type=FlowType.SYSTEM,
             event_name="observation_started",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             summary="Observation system initialized",
             tags=["system", "startup"]
         ))
@@ -660,7 +660,7 @@ class ObservationManager:
             event_id=str(uuid.uuid4()),
             flow_type=FlowType.SYSTEM,
             event_name="observation_stopped",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             summary="Observation system stopped",
             tags=["system", "shutdown"]
         ))
@@ -678,7 +678,7 @@ class ObservationManager:
 
         snapshot = FlowSnapshot(
             snapshot_id=str(uuid.uuid4()),
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             active_agents=[],  # Will be populated by orchestrator
             active_negotiations=0,
             active_workflows=0,

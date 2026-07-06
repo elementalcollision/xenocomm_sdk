@@ -20,7 +20,7 @@ Design Principles:
 from dataclasses import dataclass, field
 from typing import Any, Callable
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from .alignment import (
@@ -93,8 +93,8 @@ class CollaborationSession:
     negotiation_session: NegotiationSession | None = None
     active_variant_id: str | None = None
     metrics: WorkflowMetrics = field(default_factory=WorkflowMetrics)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -261,18 +261,18 @@ class XenoCommOrchestrator:
             metadata=metadata or {},
         )
 
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Step 1: Alignment Check
         session.metrics.alignment_attempts = 1
-        alignment_start = datetime.utcnow()
+        alignment_start = datetime.now(timezone.utc)
 
         alignment_results = self.alignment.full_alignment_check(
             agent_a, agent_b, required_domains
         )
         session.alignment_results = alignment_results
 
-        alignment_end = datetime.utcnow()
+        alignment_end = datetime.now(timezone.utc)
         session.metrics.alignment_duration_ms = (
             (alignment_end - alignment_start).total_seconds() * 1000
         )
@@ -304,7 +304,7 @@ class XenoCommOrchestrator:
 
         # Step 2: Negotiation
         session.state = WorkflowState.NEGOTIATING
-        negotiation_start = datetime.utcnow()
+        negotiation_start = datetime.now(timezone.utc)
         session.metrics.negotiation_attempts = 1
 
         # Use default params if none provided
@@ -319,7 +319,7 @@ class XenoCommOrchestrator:
         )
         session.negotiation_session = neg_session
 
-        negotiation_end = datetime.utcnow()
+        negotiation_end = datetime.now(timezone.utc)
         session.metrics.negotiation_duration_ms = (
             (negotiation_end - negotiation_start).total_seconds() * 1000
         )
@@ -331,14 +331,14 @@ class XenoCommOrchestrator:
         session.state = WorkflowState.ACTIVE
         session.metrics.success = True
         session.metrics.total_duration_ms = (
-            (datetime.utcnow() - start_time).total_seconds() * 1000
+            (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         )
 
         # Trigger session ready hooks
         self._trigger_hooks("on_session_ready", session)
 
         self.sessions[session.session_id] = session
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -442,7 +442,7 @@ class XenoCommOrchestrator:
             session.state = WorkflowState.FAILED
             session.metadata["failure_reason"] = "Negotiation rejected"
 
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
         return session
 
     def accept_counter_and_finalize(
@@ -459,7 +459,7 @@ class XenoCommOrchestrator:
         self.negotiation.accept_counter(neg_session.session_id, initiator_id)
         self.negotiation.finalize_session(neg_session.session_id, initiator_id)
 
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
         return session
 
     # =========================================================================
@@ -536,7 +536,7 @@ class XenoCommOrchestrator:
                 self.emergence.ramp_canary(variant_id)
                 if variant.status == VariantStatus.ACTIVE:
                     session.active_variant_id = variant_id
-                    session.updated_at = datetime.utcnow()
+                    session.updated_at = datetime.now(timezone.utc)
                 return {"variant": variant.to_dict(), "action": "ramped_canary"}
 
         elif variant.status == VariantStatus.ACTIVE:
@@ -622,7 +622,7 @@ class XenoCommOrchestrator:
 
         session.state = WorkflowState.SUSPENDED
         session.metadata["suspend_reason"] = reason
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -637,7 +637,7 @@ class XenoCommOrchestrator:
 
         session.state = WorkflowState.ACTIVE
         session.metadata.pop("suspend_reason", None)
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         return session
 
@@ -648,7 +648,7 @@ class XenoCommOrchestrator:
             raise ValueError(f"Session {session_id} not found")
 
         session.state = WorkflowState.COMPLETED
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc)
 
         # Close negotiation if active
         if session.negotiation_session:
