@@ -32,8 +32,11 @@ classifiers = [
     "Topic :: Communications",
 ]
 dependencies = [
-    "mcp>=1.20.0",
-    "rich>=13.0.0",
+    # Upper bounds guard against breaking major-version drift (e.g. mcp 2.x).
+    "mcp>=1.20.0,<2",
+    "rich>=13.0.0,<16",
+    # uvicorn is imported directly to serve the streamable-http transport.
+    "uvicorn>=0.27,<1",
 ]
 
 [project.optional-dependencies]
