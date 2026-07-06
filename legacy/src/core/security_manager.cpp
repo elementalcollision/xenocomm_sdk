@@ -1,3 +1,21 @@
+// ============================================================================
+// ⚠️  SECURITY WARNING — DORMANT / NON-FUNCTIONAL CRYPTO (Track S2)  ⚠️
+// ----------------------------------------------------------------------------
+// This file is part of the ARCHIVED, LEGACY C++ SDK (see /LEGACY.md). It is
+// NOT built or linked by the shipping MCP server and is UNMAINTAINED.
+//
+// It provides NO real transport security despite appearances. Verified defects:
+//   * encrypt() returns the PLAINTEXT input (a copy named `pseudo_encrypted_data`),
+//     never the ciphertext — see the inline flag at encrypt() below.
+//   * getNegotiatedCipherSuite() FAILS OPEN: it reports AES_256_GCM_SHA384 even
+//     when no SSL/cipher is negotiated (ssl_ == nullptr).
+//   * secure_transport_wrapper.cpp has dead certificate/hostname verification.
+//
+// DO NOT USE ANY TYPE IN THIS FILE FOR SECURITY. It is retained for historical
+// reference only. If this SDK is ever revived, this crypto must be rebuilt from
+// scratch (e.g. on a vetted TLS stack) — do not trust a single line of it.
+// ============================================================================
+
 #include "xenocomm/core/security_manager.h"
 #include "xenocomm/utils/logging.hpp"
 #include <openssl/ssl.h>
@@ -161,6 +179,12 @@ public:
                 std::string("Encryption failed (SSL_write): ") + std::to_string(err) + " - " + getOpenSSLError());
         }
 
+        // ⚠️  SECURITY FLAG (Track S2): THIS RETURNS PLAINTEXT, NOT CIPHERTEXT.
+        // `pseudo_encrypted_data` is a verbatim copy of the caller's `data`. The
+        // ciphertext SSL_write() produced is never read back out of the write BIO,
+        // so this "encrypt" ships the plaintext. The function only reaches here on
+        // the handshake-complete path; otherwise it fails closed above ("SSL not
+        // ready"). Either way it provides NO encryption. See /LEGACY.md (Track S2).
         std::vector<uint8_t> pseudo_encrypted_data = data;
         pseudo_encrypted_data.resize(written);
         return Result<std::vector<uint8_t>>(std::move(pseudo_encrypted_data));
