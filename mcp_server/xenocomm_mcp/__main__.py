@@ -3,8 +3,11 @@ XenoComm MCP Server - Entry Point
 
 Run with:
     python -m xenocomm_mcp                    # stdio transport (default)
-    python -m xenocomm_mcp --http             # HTTP transport on port 8000
+    python -m xenocomm_mcp --http             # HTTP transport on 127.0.0.1:8000
     python -m xenocomm_mcp --http --port 3000 # HTTP transport on custom port
+
+    HTTP auth: set XENOCOMM_HTTP_TOKEN to require an "Authorization: Bearer
+    <token>" header. Binding to a non-loopback --host without a token is refused.
 
     python -m xenocomm_mcp dashboard          # Launch observation dashboard
     python -m xenocomm_mcp demo               # Run demo with simulated activity
@@ -44,13 +47,18 @@ def main():
             default=8000,
             help="Port for HTTP transport (default: 8000)",
         )
+        parser.add_argument(
+            "--host",
+            default="127.0.0.1",
+            help="Bind address for HTTP transport (default: 127.0.0.1, loopback-only)",
+        )
 
         args = parser.parse_args()
 
         transport = "streamable-http" if args.http else "stdio"
         print(f"Starting XenoComm MCP Server (transport: {transport})")
 
-        run_server(transport=transport, port=args.port)
+        run_server(transport=transport, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
