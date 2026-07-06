@@ -8,8 +8,9 @@ MCP-compatible client.
 > **What's active:** the shipping, actively-developed product is the pure-Python
 > **MCP server** under [`mcp_server/`](mcp_server/). The original C++ SDK (the
 > "Getting Started" and C++ API sections further down) is **legacy and dormant** —
-> not built or linked by the MCP server, and unmaintained. See
-> [Component Status](#component-status).
+> not built or linked by the MCP server, and unmaintained. It has been archived
+> under [`legacy/`](legacy/); see **[LEGACY.md](LEGACY.md)** for its status and
+> verified defects, and [Component Status](#component-status).
 
 ## Overview
 
@@ -31,7 +32,7 @@ legacy reference.
 | "Claude bridge" tools | ⚠️ An agent **session registry + intent-pattern telemetry** — does **not** call an LLM |
 | KFM lifecycle engine (Kill/Fuck/Marry) | ✅ Exposed as MCP tools (register / score / evaluate / transition / dashboard) |
 | OpenClaw / Claude-Flow integrations | 🚧 Structural stubs |
-| **C++ SDK** (`src/`, `include/`) | 🗄️ **Legacy / dormant** — not built or linked by the MCP server; unmaintained |
+| **C++ SDK** (archived under [`legacy/`](legacy/)) | 🗄️ **Legacy / dormant** — not built or linked by the MCP server; unmaintained. See [LEGACY.md](LEGACY.md) |
 
 ## 🚀 Quick Start: MCP Server
 
@@ -110,9 +111,11 @@ See the [MCP Server documentation](mcp_server/README.md) for full details.
 
 > ⚠️ **The C++ SDK below is legacy and dormant.** It is not built or linked by
 > the shipping MCP server, is unmaintained, and the example code in these
-> sections may not compile against the current headers. For the actively-
-> developed product, use the **[MCP server](mcp_server/)** (see Quick Start
-> above). The material below is retained for historical reference.
+> sections may not compile against the current headers. It has been archived
+> under [`legacy/`](legacy/) — see **[LEGACY.md](LEGACY.md)** for its status and
+> verified defects (broken FSK modem, stub Reed-Solomon, plaintext `encrypt()`).
+> For the actively-developed product, use the **[MCP server](mcp_server/)** (see
+> Quick Start above). The material below is retained for historical reference.
 
 ### Prerequisites
 
@@ -127,7 +130,7 @@ See the [MCP Server documentation](mcp_server/README.md) for full details.
 ```bash
 # Clone the repository
 git clone https://github.com/elementalcollision/xenocomm_sdk.git
-cd xenocomm_sdk
+cd xenocomm_sdk/legacy   # the C++ SDK is archived here (see /LEGACY.md)
 
 # Configure with CMake
 cmake -B build -DCMAKE_BUILD_TYPE=Release
