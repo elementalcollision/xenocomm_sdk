@@ -1005,7 +1005,6 @@ class EmergenceEngine:
             return {"message": "No historical data available"}
 
         successful = [o for o in self.outcomes if o.final_status == VariantStatus.ACTIVE]
-        failed = [o for o in self.outcomes if o.final_status in (VariantStatus.ROLLED_BACK, VariantStatus.FAILED)]
 
         # Most successful change types
         change_key_success: dict[str, list[bool]] = {}
