@@ -52,6 +52,15 @@ import hmac
 
 from .observation import get_observation_manager, set_observation_manager
 from .analytics import EnhancedObservationManager
+from .kfm_lifecycle import (
+    get_kfm_engine,
+    compute_agent_kfm_score,
+    recommend_agent_action,
+    PerformanceMetrics as KFMPerformanceMetrics,
+    AlignmentMetrics,
+    EvolutionPotential,
+    LifecyclePhase,
+)
 
 
 # Initialize the MCP server
@@ -1888,6 +1897,205 @@ def get_active_claude_sessions() -> dict[str, Any]:
         "sessions": claude_bridge.get_active_sessions(),
         "count": len(claude_bridge.sessions),
     }
+
+
+# =============================================================================
+# KFM LIFECYCLE TOOLS (Agentic Evolution: Kill / Fuck / Marry)
+# =============================================================================
+
+_kfm_engine = get_kfm_engine()
+
+
+def _kfm_state_summary(state) -> dict[str, Any]:
+    """Serialize a KFM LifecycleState to a JSON-friendly summary."""
+    return {
+        "entity_id": state.entity_id,
+        "entity_type": state.entity_type,
+        "phase": state.phase.value,
+        "kfm_scores": {
+            "kill": round(state.scores.kill_score, 3),
+            "fuck": round(state.scores.fuck_score, 3),
+            "marry": round(state.scores.marry_score, 3),
+        },
+        "recommendation": state.scores.recommendation.value,
+        "confidence": round(state.scores.confidence, 3),
+        "reasoning": state.scores.reasoning,
+        "updated_at": state.updated_at.isoformat(),
+    }
+
+
+@mcp.tool()
+def register_lifecycle_entity(
+    entity_id: str,
+    entity_type: str = "agent",
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Register an entity into the KFM lifecycle (Agentic Evolution).
+
+    KFM = Kill / Fuck / Marry: eliminate (kill), experiment/adapt (fuck), or
+    integrate/stabilize (marry). Entities begin in the PROPOSED phase; call
+    update_lifecycle_metrics to compute their K/F/M scores.
+
+    Args:
+        entity_id: Unique id of the entity
+        entity_type: "agent", "protocol", or "variant"
+        metadata: Optional metadata dict
+
+    Returns:
+        The registered lifecycle state summary
+    """
+    state = _kfm_engine.register_entity(entity_id, entity_type, metadata=metadata)
+    return _kfm_state_summary(state)
+
+
+@mcp.tool()
+def update_lifecycle_metrics(
+    entity_id: str,
+    performance: dict[str, float] | None = None,
+    alignment: dict[str, float] | None = None,
+    evolution: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """
+    Update a registered entity's metrics and recompute its KFM scores.
+
+    Args:
+        entity_id: The registered entity id
+        performance: any of success_rate, error_rate, latency_ms, throughput,
+            uptime, resource_cost, maintenance_cost
+        alignment: any of goal_alignment, knowledge_coverage, conflict_frequency,
+            collaboration_success, protocol_compliance
+        evolution: any of innovation_score, learning_rate, adaptability,
+            pattern_emergence, variant_success
+
+    Returns:
+        Updated lifecycle state with recomputed K/F/M scores and recommendation
+    """
+    try:
+        state = _kfm_engine.update_metrics(
+            entity_id,
+            performance=KFMPerformanceMetrics(**performance) if performance else None,
+            alignment=AlignmentMetrics(**alignment) if alignment else None,
+            evolution=EvolutionPotential(**evolution) if evolution else None,
+        )
+    except (ValueError, TypeError) as e:
+        return {"error": str(e)}
+    return _kfm_state_summary(state)
+
+
+@mcp.tool()
+def evaluate_lifecycle_transition(entity_id: str) -> dict[str, Any]:
+    """
+    Evaluate whether an entity should transition to a new KFM lifecycle phase,
+    based on its current scores and time in phase. Does NOT perform the
+    transition (call transition_lifecycle_phase for that).
+
+    Returns:
+        The recommended phase (or none) and the reason
+    """
+    new_phase, reason = _kfm_engine.evaluate_transition(entity_id)
+    return {
+        "entity_id": entity_id,
+        "transition_recommended": new_phase is not None,
+        "recommended_phase": new_phase.value if new_phase else None,
+        "reason": reason,
+    }
+
+
+@mcp.tool()
+def transition_lifecycle_phase(
+    entity_id: str,
+    new_phase: str,
+    reason: str = "manual transition",
+) -> dict[str, Any]:
+    """
+    Execute a KFM lifecycle phase transition for an entity.
+
+    Args:
+        entity_id: The entity id
+        new_phase: one of proposed, experimental, stable, deprecated, eliminated
+        reason: Why the transition is happening (recorded in history)
+
+    Returns:
+        Updated lifecycle state
+    """
+    try:
+        phase = LifecyclePhase(new_phase)
+    except ValueError:
+        valid = ", ".join(p.value for p in LifecyclePhase)
+        return {"error": f"Invalid phase '{new_phase}'. Valid: {valid}"}
+    try:
+        state = _kfm_engine.transition_phase(entity_id, phase, reason)
+    except ValueError as e:
+        return {"error": str(e)}
+    return _kfm_state_summary(state)
+
+
+@mcp.tool()
+def get_lifecycle_dashboard() -> dict[str, Any]:
+    """
+    Get a dashboard of all KFM-tracked entities: counts by phase, current
+    kill/fuck/marry recommendations, and recent phase transitions.
+    """
+    return _kfm_engine.get_lifecycle_dashboard()
+
+
+@mcp.tool()
+def score_agent_kfm(
+    success_rate: float,
+    error_rate: float,
+    alignment_score: float,
+    collaboration_success: float,
+    innovation_potential: float = 0.5,
+    time_active_hours: float = 0.0,
+) -> dict[str, Any]:
+    """
+    Stateless KFM scoring for an agent from raw metrics — no registration needed.
+
+    Returns:
+        The kill/fuck/marry scores, the recommended operator, and the reasoning
+    """
+    scores = compute_agent_kfm_score(
+        success_rate=success_rate,
+        error_rate=error_rate,
+        alignment_score=alignment_score,
+        collaboration_success=collaboration_success,
+        innovation_potential=innovation_potential,
+        time_active_hours=time_active_hours,
+    )
+    return {
+        "kfm_scores": {
+            "kill": round(scores.kill_score, 3),
+            "fuck": round(scores.fuck_score, 3),
+            "marry": round(scores.marry_score, 3),
+        },
+        "recommendation": scores.recommendation.value,
+        "confidence": round(scores.confidence, 3),
+        "reasoning": scores.reasoning,
+    }
+
+
+@mcp.tool()
+def recommend_agent_lifecycle_action(
+    agent_id: str,
+    alignment_result: dict[str, Any],
+    performance_history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """
+    Recommend a KFM action for an agent from an alignment result (e.g. from
+    full_alignment_check) plus recent performance records.
+
+    Args:
+        agent_id: The agent id
+        alignment_result: An alignment result dict (with overall_score, or the
+            per-strategy results)
+        performance_history: recent records, each with boolean "success"/"error"
+
+    Returns:
+        Recommended action (deprecate/experiment/integrate) with concrete steps,
+        the K/F/M scores, confidence, and reasoning
+    """
+    return recommend_agent_action(agent_id, alignment_result, performance_history or [])
 
 
 # =============================================================================

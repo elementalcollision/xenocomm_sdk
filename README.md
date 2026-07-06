@@ -29,7 +29,7 @@ legacy reference.
 | Alignment / negotiation / emergence engines | ✅ Real (lexical alignment; canary/rollback emergence bookkeeping) |
 | Observability (flow events, analytics, anomaly detection) | ✅ Active in the server |
 | "Claude bridge" tools | ⚠️ An agent **session registry + intent-pattern telemetry** — does **not** call an LLM |
-| KFM lifecycle engine | 🚧 Implemented, not yet exposed as MCP tools |
+| KFM lifecycle engine (Kill/Fuck/Marry) | ✅ Exposed as MCP tools (register / score / evaluate / transition / dashboard) |
 | OpenClaw / Claude-Flow integrations | 🚧 Structural stubs |
 | **C++ SDK** (`src/`, `include/`) | 🗄️ **Legacy / dormant** — not built or linked by the MCP server; unmaintained |
 
