@@ -20,12 +20,9 @@ from pathlib import Path
 # Make the package importable when run directly from the repo root.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# Honor mcp_server/.env just like the server does.
-try:
-    from dotenv import load_dotenv
-    load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
-except Exception:
-    pass
+# Honor mcp_server/.env just like the server does (dependency-free loader).
+from xenocomm_mcp.envfile import load_env_files  # noqa: E402
+load_env_files()
 
 from xenocomm_mcp.emergence import EmergenceEngine  # noqa: E402
 from xenocomm_mcp.governance import VariantGovernance, GovernanceStatus  # noqa: E402
