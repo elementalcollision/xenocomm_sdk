@@ -318,19 +318,22 @@ class InstrumentedEmergenceEngine(EmergenceEngine):
         """Start canary with observation."""
         variant = super().start_canary(variant_id, initial_percentage)
 
+        # Report the variant's actual canary percentage, not the raw argument:
+        # callers may pass None (or omit it) to accept the configured default,
+        # and canary_started() formats the value as a percentage — None crashes.
         self.obs.emergence_sensor.canary_started(
             variant_id=variant_id,
-            percentage=initial_percentage,
+            percentage=variant.canary_percentage,
         )
 
         return variant
 
-    def ramp_canary(self, variant_id: str) -> ProtocolVariant:
+    def ramp_canary(self, variant_id: str, force: bool = False) -> ProtocolVariant:
         """Ramp canary with observation."""
         variant = self.variants.get(variant_id)
         old_pct = variant.canary_percentage if variant else 0
 
-        variant = super().ramp_canary(variant_id)
+        variant = super().ramp_canary(variant_id, force=force)
 
         self.obs.emergence_sensor.canary_ramped(
             variant_id=variant_id,
