@@ -65,6 +65,21 @@ from .kfm_lifecycle import (
 )
 
 
+# Load a local .env (mcp_server/.env) before any env var is read, so operators
+# can configure secrets (e.g. OPENROUTER_API_KEY) without exporting them by hand.
+# A real exported environment always wins (override=False); python-dotenv is a
+# declared dependency but the import is guarded so a missing dotenv never breaks
+# startup — exported env vars still work.
+try:
+    from pathlib import Path as _Path
+    from dotenv import load_dotenv as _load_dotenv
+
+    _load_dotenv(_Path(__file__).resolve().parent.parent / ".env", override=False)
+    _load_dotenv(override=False)  # also honor a .env discovered from the CWD
+except Exception:
+    pass
+
+
 # Initialize the MCP server
 mcp = FastMCP(
     "XenoComm",

@@ -37,6 +37,9 @@ dependencies = [
     "rich>=13.0.0,<16",
     # uvicorn is imported directly to serve the streamable-http transport.
     "uvicorn>=0.27,<1",
+    # Loads mcp_server/.env at startup so operators can set secrets (e.g.
+    # OPENROUTER_API_KEY) without exporting them. Import is guarded in server.py.
+    "python-dotenv>=1.0,<2",
 ]
 
 [project.optional-dependencies]
