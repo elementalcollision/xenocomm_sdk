@@ -149,7 +149,7 @@ The genuinely-real part of the C++ is the acoustic/RF-denied codec (FSK/CRC/RLE)
 
 ### Track E — REALIZE THE MOAT (highest leverage)
 - **E1 — Wire the observability substrate into the product. [M]** Instantiate `EnhancedObservationManager` in `server.py` (persisted gzip-JSONL analytics + anomaly detection) and **populate `parent_event_id`** so causality is real. This converts the strongest counter-thesis from "code exists" to "runs in product."
-- **E2 — Position vs vanilla MCP. [M · deps V2]** Evidence what the out-of-process coordination + typed observability plane does that MCP + an orchestration framework can't.
+- **E2 — Position vs vanilla MCP. [M · deps V2]** ✅ **DONE:** evidence-backed positioning brief in [`E2-positioning-vs-vanilla-mcp.md`](./E2-positioning-vs-vanilla-mcp.md) — the structural differentiator is the out-of-process, vendor-neutral broker vantage (one typed event stream across independent agent processes); every claim is anchored to *wired* code and bounded by an honest limitations section. **Note:** this supersedes the §3.4 "the moat is code-only today" caveat — E1 (PR #6) wired `EnhancedObservationManager` into the running server, live-verified against `main` (server boots, 73 tools register, `get_flow_analytics` returns populated telemetry).
 
 ### Track M — MAKE EMERGENCE REAL (only under Option B, after A/E)
 - **M1 — LLM-proposed + governed evolution. [L]** Real LLM proposes variants; real governance (vote/adopt + human gate — the dead `votes` path); wire promoted patterns → `emergence.py` → canary/rollback; full-transcript audit.
