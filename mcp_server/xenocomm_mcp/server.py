@@ -52,6 +52,7 @@ import hmac
 
 from .observation import get_observation_manager, set_observation_manager
 from .analytics import EnhancedObservationManager
+from .governance import VariantGovernance, GovernanceError
 from .kfm_lifecycle import (
     get_kfm_engine,
     compute_agent_kfm_score,
@@ -95,6 +96,17 @@ workflow_manager = InstrumentedWorkflowManager(orchestrator, observation_manager
 alignment_engine = orchestrator.alignment
 negotiation_engine = orchestrator.negotiation
 emergence_engine = orchestrator.emergence
+
+# Governance gate in front of the emergence canary pipeline (M1 P1): a proposed
+# variant must earn a quorum of agent votes above the approval ratio, then pass
+# an explicit human approval gate, before it is wired into
+# start_testing -> start_canary. Every transition is audited as an EMERGENCE
+# flow event on the observability substrate.
+variant_governance = VariantGovernance(emergence_engine, _obs_manager)
+# Expose governance to the orchestrator so the autonomous evolution workflow
+# (which drives the same engine) is gated by the same vote + human approval
+# gate, not just the manual tool path.
+orchestrator.variant_governance = variant_governance
 
 
 # =============================================================================
@@ -555,18 +567,123 @@ def propose_protocol_variant(
     """
     Propose a new protocol variant for evolution.
 
-    This starts the variant through the emergence pipeline:
-    proposed -> testing -> canary -> active.
+    The variant is placed under governance (M1 P1): it must earn a quorum of
+    agent votes above the approval ratio and then pass a human approval gate
+    before it can enter canary. Use ``cast_variant_vote`` then ``approve_variant``.
 
     Args:
         description: Human-readable description of the variant
         changes: Dict of protocol changes being proposed
 
     Returns:
-        Created variant with ID and status
+        Created variant with ID, status, and its governance state
     """
     variant = emergence_engine.propose_variant(description, changes)
-    return variant.to_dict()
+    variant_governance.submit(variant.variant_id, description)
+    result = variant.to_dict()
+    result["governance"] = {
+        "status": "voting",
+        "quorum": variant_governance.config.quorum,
+        "approval_ratio": variant_governance.config.approval_ratio,
+        "next": "cast_variant_vote -> (quorum + ratio) -> approve_variant -> canary",
+    }
+    return result
+
+
+@mcp.tool()
+def cast_variant_vote(
+    variant_id: str,
+    agent_id: str,
+    vote: str,
+    rationale: str = "",
+) -> dict[str, Any]:
+    """
+    Cast an agent's vote on a proposed protocol variant (governance, M1 P1).
+
+    One vote per agent (re-voting overwrites). When the quorum and approval
+    ratio are met the variant advances to awaiting-human-approval; it is not
+    promoted until a human approves via ``approve_variant``.
+
+    Args:
+        variant_id: ID of the variant being voted on
+        agent_id: The voting agent
+        vote: "for" or "against"
+        rationale: Optional free-text reason (recorded in the audit trail)
+
+    Returns:
+        The current status and vote tally, or an error dict
+    """
+    try:
+        return variant_governance.cast_vote(variant_id, agent_id, vote, rationale)
+    except GovernanceError as exc:
+        return {"error": str(exc), "variant_id": variant_id}
+
+
+@mcp.tool()
+def approve_variant(
+    variant_id: str,
+    approver: str,
+    decision: str,
+    reason: str = "",
+) -> dict[str, Any]:
+    """
+    The human approval gate for a variant that has passed its vote (M1 P1).
+
+    ``decision="approve"`` wires the variant into the emergence canary pipeline
+    (start_testing -> start_canary); ``decision="reject"`` closes it without
+    promotion. Valid only once the variant has passed the vote.
+
+    Args:
+        variant_id: ID of the variant at the gate
+        approver: Identifier of the human approver (recorded in the audit trail)
+        decision: "approve" or "reject"
+        reason: Optional free-text justification
+
+    Returns:
+        The resulting status (and any promotion error), or an error dict
+    """
+    try:
+        return variant_governance.human_approve(variant_id, approver, decision, reason)
+    except GovernanceError as exc:
+        return {"error": str(exc), "variant_id": variant_id}
+
+
+@mcp.tool()
+def get_variant_governance(variant_id: str) -> dict[str, Any]:
+    """
+    Get the full governance record for a variant: status, votes, tally, human
+    decision, and the audit trail of every transition.
+    """
+    try:
+        return variant_governance.get(variant_id).to_dict(variant_governance.config)
+    except GovernanceError as exc:
+        return {"error": str(exc), "variant_id": variant_id}
+
+
+@mcp.tool()
+def list_variants_awaiting_approval() -> dict[str, Any]:
+    """
+    List variants that have passed their vote and are waiting at the human
+    approval gate (the operator's review queue).
+    """
+    pending = variant_governance.list_awaiting_approval()
+    return {"count": len(pending), "variants": pending}
+
+
+@mcp.tool()
+def close_variant_voting(
+    variant_id: str,
+    actor: str,
+    reason: str = "",
+) -> dict[str, Any]:
+    """
+    Close an open vote that has not passed, marking the variant vote-failed
+    (governance, M1 P1). Use for stale or withdrawn proposals.
+    """
+    try:
+        return variant_governance.close_voting(variant_id, actor, reason)
+    except GovernanceError as exc:
+        return {"error": str(exc), "variant_id": variant_id}
 
 
 @mcp.tool()
@@ -590,6 +707,7 @@ def start_variant_testing(
 def start_canary_deployment(
     variant_id: str,
     initial_percentage: float | None = None,
+    force: bool = False,
 ) -> dict[str, Any]:
     """
     Start canary deployment for a variant.
@@ -597,14 +715,39 @@ def start_canary_deployment(
     Routes a small percentage of traffic to the new variant while
     monitoring for issues.
 
+    Governance (M1 P1): canary sends real traffic, so this refuses to run for a
+    governed variant that has not cleared the vote + human gate. Drive promotion
+    through ``approve_variant`` instead. ``force=True`` bypasses the check and is
+    intended only for mechanism/testing.
+
     Args:
         variant_id: ID of the variant to deploy
         initial_percentage: Initial traffic percentage (default 0.1 = 10%)
+        force: Skip the governance check (mechanism/testing only)
 
     Returns:
-        Updated variant with canary status
+        Updated variant with canary status, or an error if governance blocks it
     """
-    variant = emergence_engine.start_canary(variant_id, initial_percentage)
+    # Fail CLOSED: canary sends real traffic, so refuse unless the variant has
+    # cleared governance (human-approved / promoted). A variant with no record
+    # is treated as ungoverned and refused too — otherwise off-tool paths (e.g.
+    # the evolution workflow) could slip an unvoted variant through.
+    if not force and not variant_governance.is_promotable(variant_id):
+        status = (variant_governance.get(variant_id).status.value
+                  if variant_governance.has(variant_id) else "ungoverned")
+        return {
+            "error": "Variant has not cleared governance; canary is blocked.",
+            "variant_id": variant_id,
+            "governance_status": status,
+            "hint": "Submit + collect votes (cast_variant_vote) then approve_variant. "
+                    "Use force=True only for mechanism/testing.",
+        }
+    try:
+        variant = emergence_engine.start_canary(variant_id, initial_percentage)
+    except ValueError as exc:
+        # e.g. variant already in canary/active, or not in TESTING — surface it
+        # as a graceful error dict like the sibling governance tools.
+        return {"error": str(exc), "variant_id": variant_id}
     return variant.to_dict()
 
 

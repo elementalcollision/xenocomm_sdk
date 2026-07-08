@@ -435,6 +435,12 @@ class ProtocolEvolutionWorkflow:
         )
         execution.context["variant_id"] = variant.variant_id
 
+        # Place the variant under governance so this autonomous path is gated by
+        # the same vote + human-approval gate as the manual tool path.
+        governance = getattr(self.orchestrator, "variant_governance", None)
+        if governance is not None:
+            governance.submit(variant.variant_id, execution.context["description"])
+
         # Predict success based on history
         prediction = self.orchestrator.emergence.predict_success(
             execution.context["changes"]
@@ -465,8 +471,21 @@ class ProtocolEvolutionWorkflow:
         }
 
     def _step_canary(self, execution: WorkflowExecution) -> dict[str, Any]:
-        """Start canary deployment."""
+        """Start canary deployment — gated by governance (M1 P1).
+
+        Canary sends real traffic, so an autonomous workflow may not start it
+        until the variant has cleared the vote + human-approval gate. If it has
+        not, the workflow halts here; the variant is already under governance
+        (submitted at the propose step) awaiting votes + approval.
+        """
         variant_id = execution.context["variant_id"]
+        governance = getattr(self.orchestrator, "variant_governance", None)
+        if governance is not None and not governance.is_promotable(variant_id):
+            raise PermissionError(
+                "Canary blocked by governance: the variant must clear the vote + "
+                "human-approval gate before real traffic. Use cast_variant_vote "
+                "then approve_variant; the variant is awaiting governance."
+            )
         variant = self.orchestrator.emergence.start_canary(variant_id)
 
         return {
