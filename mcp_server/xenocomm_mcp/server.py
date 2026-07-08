@@ -53,6 +53,7 @@ import hmac
 from .observation import get_observation_manager, set_observation_manager
 from .analytics import EnhancedObservationManager
 from .governance import VariantGovernance, GovernanceError
+from .llm_proposer import LLMVariantProposer, LLMProposerError
 from .kfm_lifecycle import (
     get_kfm_engine,
     compute_agent_kfm_score,
@@ -107,6 +108,13 @@ variant_governance = VariantGovernance(emergence_engine, _obs_manager)
 # (which drives the same engine) is gated by the same vote + human approval
 # gate, not just the manual tool path.
 orchestrator.variant_governance = variant_governance
+
+# LLM-proposed variants (M1 P2): the generator that was missing. Proposals go
+# straight into the governance gate above. The OpenRouter client is built lazily
+# from env (OPENROUTER_API_KEY / OPENROUTER_MODEL) only when a proposal is made,
+# so import/boot never require a key or spend tokens.
+llm_proposer = LLMVariantProposer(emergence_engine, variant_governance,
+                                  observation_manager=_obs_manager)
 
 
 # =============================================================================
@@ -588,6 +596,39 @@ def propose_protocol_variant(
         "next": "cast_variant_vote -> (quorum + ratio) -> approve_variant -> canary",
     }
     return result
+
+
+@mcp.tool()
+def propose_variant_via_llm(
+    goal: str,
+    context: dict[str, Any] | None = None,
+    temperature: float = 0.4,
+) -> dict[str, Any]:
+    """
+    Have an LLM propose a protocol variant for a goal (M1 P2, via OpenRouter).
+
+    The LLM generates a concrete variant (description + changes), which is placed
+    under governance exactly like a manual proposal: it must earn a quorum of
+    votes and pass the human approval gate before it can reach canary. Requires
+    OPENROUTER_API_KEY (model defaults to deepseek/deepseek-v4-flash, override
+    with OPENROUTER_MODEL).
+
+    Args:
+        goal: What the variant should improve (e.g. "reduce coordination latency")
+        context: Optional current metrics/observations to inform the proposal
+        temperature: Sampling temperature for the LLM
+
+    Returns:
+        The proposed variant + its governance state, or a graceful error dict
+    """
+    try:
+        return llm_proposer.propose(goal, context, temperature)
+    except LLMProposerError as exc:
+        return {
+            "error": str(exc),
+            "hint": "Set OPENROUTER_API_KEY (and optionally OPENROUTER_MODEL, "
+                    "default deepseek/deepseek-v4-flash) to enable LLM proposals.",
+        }
 
 
 @mcp.tool()
