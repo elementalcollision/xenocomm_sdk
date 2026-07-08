@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "xenocomm": {
-      "command": "python",
+      "command": "${workspaceFolder}/mcp_server/.venv/bin/python",
       "args": ["-m", "xenocomm_mcp"],
       "cwd": "${workspaceFolder}/mcp_server",
       "env": {
