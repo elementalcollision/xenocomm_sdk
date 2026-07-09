@@ -1,0 +1,972 @@
+{
+  "title": "XenoComm E1 observability",
+  "generated_utc": "2026-07-09T20:49:05.537909+00:00",
+  "summary": {
+    "events": 22,
+    "causal_trees": 3,
+    "linked_events": 9,
+    "flow_types": 5,
+    "agents": 4,
+    "persisted_events": 23
+  },
+  "causal_trees": [
+    {
+      "root": {
+        "event_id": "48ad69ed-a3c5-44e5-9695-c84f4799b1e7",
+        "flow_type": "collaboration",
+        "event_name": "collaboration_initiated",
+        "timestamp": "2026-07-09T20:49:03.532488+00:00",
+        "severity": "info",
+        "source_agent": "planner-claude",
+        "target_agent": "executor-deepseek",
+        "session_id": "planner-claude:executor-deepseek",
+        "metrics": {},
+        "summary": "Collaboration initiated: planner-claude <-> executor-deepseek",
+        "tags": [
+          "collaboration",
+          "root"
+        ],
+        "parent_event_id": null,
+        "duration_ms": null
+      },
+      "children": [
+        {
+          "event_id": "a209880c-ee59-44fc-afe5-52dd866778ea",
+          "flow_type": "alignment",
+          "event_name": "alignment_started",
+          "timestamp": "2026-07-09T20:49:03.532497+00:00",
+          "severity": "info",
+          "source_agent": "planner-claude",
+          "target_agent": "executor-deepseek",
+          "session_id": "planner-claude:executor-deepseek",
+          "metrics": {},
+          "summary": "Checking alignment: planner-claude <-> executor-deepseek",
+          "tags": [
+            "alignment",
+            "start"
+          ],
+          "parent_event_id": "48ad69ed-a3c5-44e5-9695-c84f4799b1e7",
+          "duration_ms": null
+        },
+        {
+          "event_id": "554d1a87-3d6a-4c1e-9ef4-855a31eb35be",
+          "flow_type": "alignment",
+          "event_name": "alignment_completed",
+          "timestamp": "2026-07-09T20:49:03.532582+00:00",
+          "severity": "info",
+          "source_agent": "planner-claude",
+          "target_agent": "executor-deepseek",
+          "session_id": "planner-claude:executor-deepseek",
+          "metrics": {
+            "score": 0.6666666666666666,
+            "dimensions_checked": 6,
+            "aligned_count": 3,
+            "duration_ms": 0.076
+          },
+          "summary": "Alignment score: 66.7% (3/6 aligned)",
+          "tags": [
+            "alignment",
+            "complete"
+          ],
+          "parent_event_id": "48ad69ed-a3c5-44e5-9695-c84f4799b1e7",
+          "duration_ms": 0.076
+        },
+        {
+          "event_id": "4e39cc91-e468-4541-8f22-aa88d1695759",
+          "flow_type": "collaboration",
+          "event_name": "session_created",
+          "timestamp": "2026-07-09T20:49:03.532588+00:00",
+          "severity": "info",
+          "source_agent": "planner-claude",
+          "target_agent": "executor-deepseek",
+          "session_id": "7f6cd714-b961-4148-bddc-9057f7ff8c8e",
+          "metrics": {},
+          "summary": "Collaboration: planner-claude <-> executor-deepseek",
+          "tags": [
+            "collaboration",
+            "start"
+          ],
+          "parent_event_id": "48ad69ed-a3c5-44e5-9695-c84f4799b1e7",
+          "duration_ms": null
+        }
+      ]
+    },
+    {
+      "root": {
+        "event_id": "832e0148-a0bb-4977-8fdf-b096c678b01a",
+        "flow_type": "collaboration",
+        "event_name": "collaboration_initiated",
+        "timestamp": "2026-07-09T20:49:03.532609+00:00",
+        "severity": "info",
+        "source_agent": "planner-claude",
+        "target_agent": "reviewer-gpt",
+        "session_id": "planner-claude:reviewer-gpt",
+        "metrics": {},
+        "summary": "Collaboration initiated: planner-claude <-> reviewer-gpt",
+        "tags": [
+          "collaboration",
+          "root"
+        ],
+        "parent_event_id": null,
+        "duration_ms": null
+      },
+      "children": [
+        {
+          "event_id": "758da52f-4dab-4d40-baef-17c0953c4ee5",
+          "flow_type": "alignment",
+          "event_name": "alignment_started",
+          "timestamp": "2026-07-09T20:49:03.532616+00:00",
+          "severity": "info",
+          "source_agent": "planner-claude",
+          "target_agent": "reviewer-gpt",
+          "session_id": "planner-claude:reviewer-gpt",
+          "metrics": {},
+          "summary": "Checking alignment: planner-claude <-> reviewer-gpt",
+          "tags": [
+            "alignment",
+            "start"
+          ],
+          "parent_event_id": "832e0148-a0bb-4977-8fdf-b096c678b01a",
+          "duration_ms": null
+        },
+        {
+          "event_id": "1c2c2d5a-550b-41a3-8209-5672ea7ca7a8",
+          "flow_type": "alignment",
+          "event_name": "alignment_completed",
+          "timestamp": "2026-07-09T20:49:03.532664+00:00",
+          "severity": "info",
+          "source_agent": "planner-claude",
+          "target_agent": "reviewer-gpt",
+          "session_id": "planner-claude:reviewer-gpt",
+          "metrics": {
+            "score": 0.6666666666666666,
+            "dimensions_checked": 6,
+            "aligned_count": 3,
+            "duration_ms": 0.041
+          },
+          "summary": "Alignment score: 66.7% (3/6 aligned)",
+          "tags": [
+            "alignment",
+            "complete"
+          ],
+          "parent_event_id": "832e0148-a0bb-4977-8fdf-b096c678b01a",
+          "duration_ms": 0.041
+        },
+        {
+          "event_id": "b6dcff74-5dd2-40b5-a960-1eb775716de4",
+          "flow_type": "collaboration",
+          "event_name": "session_created",
+          "timestamp": "2026-07-09T20:49:03.532670+00:00",
+          "severity": "info",
+          "source_agent": "planner-claude",
+          "target_agent": "reviewer-gpt",
+          "session_id": "b7357243-f770-4e8e-84c7-07c959da67dc",
+          "metrics": {},
+          "summary": "Collaboration: planner-claude <-> reviewer-gpt",
+          "tags": [
+            "collaboration",
+            "start"
+          ],
+          "parent_event_id": "832e0148-a0bb-4977-8fdf-b096c678b01a",
+          "duration_ms": null
+        }
+      ]
+    },
+    {
+      "root": {
+        "event_id": "ad68cd94-425e-4dcc-ac8b-11fda88d33dd",
+        "flow_type": "collaboration",
+        "event_name": "collaboration_initiated",
+        "timestamp": "2026-07-09T20:49:03.532684+00:00",
+        "severity": "info",
+        "source_agent": "executor-deepseek",
+        "target_agent": "router-llama",
+        "session_id": "executor-deepseek:router-llama",
+        "metrics": {},
+        "summary": "Collaboration initiated: executor-deepseek <-> router-llama",
+        "tags": [
+          "collaboration",
+          "root"
+        ],
+        "parent_event_id": null,
+        "duration_ms": null
+      },
+      "children": [
+        {
+          "event_id": "2c085577-62d5-4f89-ab8a-154a81f6d436",
+          "flow_type": "alignment",
+          "event_name": "alignment_started",
+          "timestamp": "2026-07-09T20:49:03.532689+00:00",
+          "severity": "info",
+          "source_agent": "executor-deepseek",
+          "target_agent": "router-llama",
+          "session_id": "executor-deepseek:router-llama",
+          "metrics": {},
+          "summary": "Checking alignment: executor-deepseek <-> router-llama",
+          "tags": [
+            "alignment",
+            "start"
+          ],
+          "parent_event_id": "ad68cd94-425e-4dcc-ac8b-11fda88d33dd",
+          "duration_ms": null
+        },
+        {
+          "event_id": "1bd02266-06cf-4a14-ba2b-dbebb5b52a73",
+          "flow_type": "alignment",
+          "event_name": "alignment_completed",
+          "timestamp": "2026-07-09T20:49:03.532726+00:00",
+          "severity": "info",
+          "source_agent": "executor-deepseek",
+          "target_agent": "router-llama",
+          "session_id": "executor-deepseek:router-llama",
+          "metrics": {
+            "score": 0.6666666666666666,
+            "dimensions_checked": 6,
+            "aligned_count": 3,
+            "duration_ms": 0.031
+          },
+          "summary": "Alignment score: 66.7% (3/6 aligned)",
+          "tags": [
+            "alignment",
+            "complete"
+          ],
+          "parent_event_id": "ad68cd94-425e-4dcc-ac8b-11fda88d33dd",
+          "duration_ms": 0.031
+        },
+        {
+          "event_id": "e41e9eba-0656-43c1-8937-96d7432f07bd",
+          "flow_type": "collaboration",
+          "event_name": "session_created",
+          "timestamp": "2026-07-09T20:49:03.532731+00:00",
+          "severity": "info",
+          "source_agent": "executor-deepseek",
+          "target_agent": "router-llama",
+          "session_id": "a56f0e93-0b8e-454a-a421-4716b047c21a",
+          "metrics": {},
+          "summary": "Collaboration: executor-deepseek <-> router-llama",
+          "tags": [
+            "collaboration",
+            "start"
+          ],
+          "parent_event_id": "ad68cd94-425e-4dcc-ac8b-11fda88d33dd",
+          "duration_ms": null
+        }
+      ]
+    }
+  ],
+  "sample_event": {
+    "event_id": "48ad69ed-a3c5-44e5-9695-c84f4799b1e7",
+    "flow_type": "collaboration",
+    "event_name": "collaboration_initiated",
+    "timestamp": "2026-07-09T20:49:03.532488+00:00",
+    "severity": "info",
+    "source_agent": "planner-claude",
+    "target_agent": "executor-deepseek",
+    "session_id": "planner-claude:executor-deepseek",
+    "metrics": {},
+    "summary": "Collaboration initiated: planner-claude <-> executor-deepseek",
+    "tags": [
+      "collaboration",
+      "root"
+    ],
+    "parent_event_id": null,
+    "duration_ms": null
+  },
+  "flow_metrics": {
+    "system": {
+      "flow_type": "system",
+      "event_count": 1,
+      "error_count": 0,
+      "error_rate": 0.0,
+      "avg_duration_ms": null,
+      "min_duration_ms": null,
+      "max_duration_ms": null,
+      "events_per_minute": 1.0,
+      "unique_agents": 0,
+      "unique_sessions": 0,
+      "top_events": {
+        "observation_started": 1
+      }
+    },
+    "agent_lifecycle": {
+      "flow_type": "agent_lifecycle",
+      "event_count": 4,
+      "error_count": 0,
+      "error_rate": 0.0,
+      "avg_duration_ms": null,
+      "min_duration_ms": null,
+      "max_duration_ms": null,
+      "events_per_minute": 4.0,
+      "unique_agents": 4,
+      "unique_sessions": 0,
+      "top_events": {
+        "agent_registered": 4
+      }
+    },
+    "collaboration": {
+      "flow_type": "collaboration",
+      "event_count": 6,
+      "error_count": 0,
+      "error_rate": 0.0,
+      "avg_duration_ms": null,
+      "min_duration_ms": null,
+      "max_duration_ms": null,
+      "events_per_minute": 6.0,
+      "unique_agents": 4,
+      "unique_sessions": 6,
+      "top_events": {
+        "collaboration_initiated": 3,
+        "session_created": 3
+      }
+    },
+    "alignment": {
+      "flow_type": "alignment",
+      "event_count": 6,
+      "error_count": 0,
+      "error_rate": 0.0,
+      "avg_duration_ms": 0.04933333333333333,
+      "min_duration_ms": 0.031,
+      "max_duration_ms": 0.076,
+      "events_per_minute": 6.0,
+      "unique_agents": 4,
+      "unique_sessions": 3,
+      "top_events": {
+        "alignment_started": 3,
+        "alignment_completed": 3
+      }
+    },
+    "negotiation": {
+      "flow_type": "negotiation",
+      "event_count": 5,
+      "error_count": 2,
+      "error_rate": 0.4,
+      "avg_duration_ms": null,
+      "min_duration_ms": null,
+      "max_duration_ms": null,
+      "events_per_minute": 5.0,
+      "unique_agents": 2,
+      "unique_sessions": 1,
+      "top_events": {
+        "message_exchanged": 3,
+        "exchange_failed": 2
+      }
+    }
+  },
+  "agent_metrics": {
+    "planner-claude": {
+      "agent_id": "planner-claude",
+      "total_events": 14,
+      "as_source": 12,
+      "as_target": 2,
+      "alignments": 4,
+      "negotiations": 5,
+      "collaborations": 4,
+      "error_events": 2,
+      "last_active": "2026-07-09T20:49:03.532781+00:00"
+    },
+    "executor-deepseek": {
+      "agent_id": "executor-deepseek",
+      "total_events": 14,
+      "as_source": 7,
+      "as_target": 7,
+      "alignments": 4,
+      "negotiations": 5,
+      "collaborations": 4,
+      "error_events": 2,
+      "last_active": "2026-07-09T20:49:03.532781+00:00"
+    },
+    "reviewer-gpt": {
+      "agent_id": "reviewer-gpt",
+      "total_events": 5,
+      "as_source": 1,
+      "as_target": 4,
+      "alignments": 2,
+      "negotiations": 0,
+      "collaborations": 2,
+      "error_events": 0,
+      "last_active": "2026-07-09T20:49:03.532670+00:00"
+    },
+    "router-llama": {
+      "agent_id": "router-llama",
+      "total_events": 5,
+      "as_source": 1,
+      "as_target": 4,
+      "alignments": 2,
+      "negotiations": 0,
+      "collaborations": 2,
+      "error_events": 0,
+      "last_active": "2026-07-09T20:49:03.532731+00:00"
+    }
+  },
+  "throughput_trend": [
+    {
+      "start": "2026-07-09T19:49:03.532868+00:00",
+      "end": "2026-07-09T19:54:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T19:54:03.532868+00:00",
+      "end": "2026-07-09T19:59:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T19:59:03.532868+00:00",
+      "end": "2026-07-09T20:04:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T20:04:03.532868+00:00",
+      "end": "2026-07-09T20:09:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T20:09:03.532868+00:00",
+      "end": "2026-07-09T20:14:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T20:14:03.532868+00:00",
+      "end": "2026-07-09T20:19:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T20:19:03.532868+00:00",
+      "end": "2026-07-09T20:24:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T20:24:03.532868+00:00",
+      "end": "2026-07-09T20:29:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T20:29:03.532868+00:00",
+      "end": "2026-07-09T20:34:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T20:34:03.532868+00:00",
+      "end": "2026-07-09T20:39:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T20:39:03.532868+00:00",
+      "end": "2026-07-09T20:44:03.532868+00:00",
+      "event_count": 0,
+      "events_per_minute": 0.0
+    },
+    {
+      "start": "2026-07-09T20:44:03.532868+00:00",
+      "end": "2026-07-09T20:49:03.532868+00:00",
+      "event_count": 22,
+      "events_per_minute": 4.4
+    }
+  ],
+  "error_summary": {
+    "total_errors": 2,
+    "total_events": 22,
+    "error_rate": 0.09090909090909091,
+    "by_event_name": {
+      "exchange_failed": 2
+    },
+    "by_flow_type": {
+      "negotiation": 2
+    },
+    "recent_errors": [
+      {
+        "event_id": "fd28afb3-80ca-4fd4-9f50-7563c28c35e2",
+        "flow_type": "negotiation",
+        "event_name": "exchange_failed",
+        "timestamp": "2026-07-09T20:49:03.532777+00:00",
+        "severity": "error",
+        "source_agent": "executor-deepseek",
+        "target_agent": "planner-claude",
+        "session_id": "55fc78f3-70a8-4ad8-b4f3-d4b84e48d67e",
+        "metrics": {
+          "latency_ms": 5000,
+          "error": "timeout"
+        },
+        "summary": "timeout 0",
+        "tags": [
+          "error"
+        ],
+        "parent_event_id": null,
+        "duration_ms": null
+      },
+      {
+        "event_id": "bd79d7a2-135a-4a4e-81cf-cef6b805816b",
+        "flow_type": "negotiation",
+        "event_name": "exchange_failed",
+        "timestamp": "2026-07-09T20:49:03.532781+00:00",
+        "severity": "error",
+        "source_agent": "executor-deepseek",
+        "target_agent": "planner-claude",
+        "session_id": "55fc78f3-70a8-4ad8-b4f3-d4b84e48d67e",
+        "metrics": {
+          "latency_ms": 5000,
+          "error": "timeout"
+        },
+        "summary": "timeout 1",
+        "tags": [
+          "error"
+        ],
+        "parent_event_id": null,
+        "duration_ms": null
+      }
+    ]
+  },
+  "anomalies": [],
+  "alerts": {
+    "total_alerts": 0,
+    "unacknowledged": 0,
+    "by_severity": {},
+    "recent_critical": []
+  },
+  "persistence": {
+    "dir": "/var/folders/9t/czshm55s7kz1rg8s2j4l97g00000gn/T/xeno-e1-flows-iosrraj_",
+    "files": [
+      {
+        "name": "flows_20260709_204905_0.jsonl.gz",
+        "bytes": 1624,
+        "events": 23
+      }
+    ],
+    "note": "Written by the EnhancedObservationManager's gzip-JSONL export. Honest scope: this is a separate write/export path \u2014 the analytics above read the in-memory event bus, not this file."
+  },
+  "events": [
+    {
+      "event_id": "2a366100-b4fb-4231-b053-94af5cccdacf",
+      "flow_type": "system",
+      "event_name": "observation_started",
+      "timestamp": "2026-07-09T20:49:03.503260+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {},
+      "summary": "Observation system initialized",
+      "tags": [
+        "system",
+        "startup"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "3d51f185-3350-4bc0-9e72-f7da10966cb6",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:49:03.532419+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'planner-claude' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "6cd96f7c-884f-46f8-9d8c-08f51db3b14c",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:49:03.532453+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'executor-deepseek' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "80a88e9d-07e9-467a-b7ab-3f738a4cebec",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:49:03.532468+00:00",
+      "severity": "info",
+      "source_agent": "reviewer-gpt",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'reviewer-gpt' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "618ac0fd-da52-4d23-ab13-327b89a04b32",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:49:03.532477+00:00",
+      "severity": "info",
+      "source_agent": "router-llama",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'router-llama' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "48ad69ed-a3c5-44e5-9695-c84f4799b1e7",
+      "flow_type": "collaboration",
+      "event_name": "collaboration_initiated",
+      "timestamp": "2026-07-09T20:49:03.532488+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "planner-claude:executor-deepseek",
+      "metrics": {},
+      "summary": "Collaboration initiated: planner-claude <-> executor-deepseek",
+      "tags": [
+        "collaboration",
+        "root"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "a209880c-ee59-44fc-afe5-52dd866778ea",
+      "flow_type": "alignment",
+      "event_name": "alignment_started",
+      "timestamp": "2026-07-09T20:49:03.532497+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "planner-claude:executor-deepseek",
+      "metrics": {},
+      "summary": "Checking alignment: planner-claude <-> executor-deepseek",
+      "tags": [
+        "alignment",
+        "start"
+      ],
+      "parent_event_id": "48ad69ed-a3c5-44e5-9695-c84f4799b1e7",
+      "duration_ms": null
+    },
+    {
+      "event_id": "554d1a87-3d6a-4c1e-9ef4-855a31eb35be",
+      "flow_type": "alignment",
+      "event_name": "alignment_completed",
+      "timestamp": "2026-07-09T20:49:03.532582+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "planner-claude:executor-deepseek",
+      "metrics": {
+        "score": 0.6666666666666666,
+        "dimensions_checked": 6,
+        "aligned_count": 3,
+        "duration_ms": 0.076
+      },
+      "summary": "Alignment score: 66.7% (3/6 aligned)",
+      "tags": [
+        "alignment",
+        "complete"
+      ],
+      "parent_event_id": "48ad69ed-a3c5-44e5-9695-c84f4799b1e7",
+      "duration_ms": 0.076
+    },
+    {
+      "event_id": "4e39cc91-e468-4541-8f22-aa88d1695759",
+      "flow_type": "collaboration",
+      "event_name": "session_created",
+      "timestamp": "2026-07-09T20:49:03.532588+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "7f6cd714-b961-4148-bddc-9057f7ff8c8e",
+      "metrics": {},
+      "summary": "Collaboration: planner-claude <-> executor-deepseek",
+      "tags": [
+        "collaboration",
+        "start"
+      ],
+      "parent_event_id": "48ad69ed-a3c5-44e5-9695-c84f4799b1e7",
+      "duration_ms": null
+    },
+    {
+      "event_id": "832e0148-a0bb-4977-8fdf-b096c678b01a",
+      "flow_type": "collaboration",
+      "event_name": "collaboration_initiated",
+      "timestamp": "2026-07-09T20:49:03.532609+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "reviewer-gpt",
+      "session_id": "planner-claude:reviewer-gpt",
+      "metrics": {},
+      "summary": "Collaboration initiated: planner-claude <-> reviewer-gpt",
+      "tags": [
+        "collaboration",
+        "root"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "758da52f-4dab-4d40-baef-17c0953c4ee5",
+      "flow_type": "alignment",
+      "event_name": "alignment_started",
+      "timestamp": "2026-07-09T20:49:03.532616+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "reviewer-gpt",
+      "session_id": "planner-claude:reviewer-gpt",
+      "metrics": {},
+      "summary": "Checking alignment: planner-claude <-> reviewer-gpt",
+      "tags": [
+        "alignment",
+        "start"
+      ],
+      "parent_event_id": "832e0148-a0bb-4977-8fdf-b096c678b01a",
+      "duration_ms": null
+    },
+    {
+      "event_id": "1c2c2d5a-550b-41a3-8209-5672ea7ca7a8",
+      "flow_type": "alignment",
+      "event_name": "alignment_completed",
+      "timestamp": "2026-07-09T20:49:03.532664+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "reviewer-gpt",
+      "session_id": "planner-claude:reviewer-gpt",
+      "metrics": {
+        "score": 0.6666666666666666,
+        "dimensions_checked": 6,
+        "aligned_count": 3,
+        "duration_ms": 0.041
+      },
+      "summary": "Alignment score: 66.7% (3/6 aligned)",
+      "tags": [
+        "alignment",
+        "complete"
+      ],
+      "parent_event_id": "832e0148-a0bb-4977-8fdf-b096c678b01a",
+      "duration_ms": 0.041
+    },
+    {
+      "event_id": "b6dcff74-5dd2-40b5-a960-1eb775716de4",
+      "flow_type": "collaboration",
+      "event_name": "session_created",
+      "timestamp": "2026-07-09T20:49:03.532670+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "reviewer-gpt",
+      "session_id": "b7357243-f770-4e8e-84c7-07c959da67dc",
+      "metrics": {},
+      "summary": "Collaboration: planner-claude <-> reviewer-gpt",
+      "tags": [
+        "collaboration",
+        "start"
+      ],
+      "parent_event_id": "832e0148-a0bb-4977-8fdf-b096c678b01a",
+      "duration_ms": null
+    },
+    {
+      "event_id": "ad68cd94-425e-4dcc-ac8b-11fda88d33dd",
+      "flow_type": "collaboration",
+      "event_name": "collaboration_initiated",
+      "timestamp": "2026-07-09T20:49:03.532684+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": "router-llama",
+      "session_id": "executor-deepseek:router-llama",
+      "metrics": {},
+      "summary": "Collaboration initiated: executor-deepseek <-> router-llama",
+      "tags": [
+        "collaboration",
+        "root"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "2c085577-62d5-4f89-ab8a-154a81f6d436",
+      "flow_type": "alignment",
+      "event_name": "alignment_started",
+      "timestamp": "2026-07-09T20:49:03.532689+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": "router-llama",
+      "session_id": "executor-deepseek:router-llama",
+      "metrics": {},
+      "summary": "Checking alignment: executor-deepseek <-> router-llama",
+      "tags": [
+        "alignment",
+        "start"
+      ],
+      "parent_event_id": "ad68cd94-425e-4dcc-ac8b-11fda88d33dd",
+      "duration_ms": null
+    },
+    {
+      "event_id": "1bd02266-06cf-4a14-ba2b-dbebb5b52a73",
+      "flow_type": "alignment",
+      "event_name": "alignment_completed",
+      "timestamp": "2026-07-09T20:49:03.532726+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": "router-llama",
+      "session_id": "executor-deepseek:router-llama",
+      "metrics": {
+        "score": 0.6666666666666666,
+        "dimensions_checked": 6,
+        "aligned_count": 3,
+        "duration_ms": 0.031
+      },
+      "summary": "Alignment score: 66.7% (3/6 aligned)",
+      "tags": [
+        "alignment",
+        "complete"
+      ],
+      "parent_event_id": "ad68cd94-425e-4dcc-ac8b-11fda88d33dd",
+      "duration_ms": 0.031
+    },
+    {
+      "event_id": "e41e9eba-0656-43c1-8937-96d7432f07bd",
+      "flow_type": "collaboration",
+      "event_name": "session_created",
+      "timestamp": "2026-07-09T20:49:03.532731+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": "router-llama",
+      "session_id": "a56f0e93-0b8e-454a-a421-4716b047c21a",
+      "metrics": {},
+      "summary": "Collaboration: executor-deepseek <-> router-llama",
+      "tags": [
+        "collaboration",
+        "start"
+      ],
+      "parent_event_id": "ad68cd94-425e-4dcc-ac8b-11fda88d33dd",
+      "duration_ms": null
+    },
+    {
+      "event_id": "f7faee03-84fa-4b96-8c8c-d577fb83d923",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:49:03.532764+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "55fc78f3-70a8-4ad8-b4f3-d4b84e48d67e",
+      "metrics": {
+        "latency_ms": 40
+      },
+      "summary": "exchange 0",
+      "tags": [],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f37c6ea1-5c99-4403-8a63-1beccbfe9c8c",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:49:03.532769+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "55fc78f3-70a8-4ad8-b4f3-d4b84e48d67e",
+      "metrics": {
+        "latency_ms": 41
+      },
+      "summary": "exchange 1",
+      "tags": [],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "766ecddf-2a5b-4343-b388-4dfbf937060a",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:49:03.532773+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "55fc78f3-70a8-4ad8-b4f3-d4b84e48d67e",
+      "metrics": {
+        "latency_ms": 42
+      },
+      "summary": "exchange 2",
+      "tags": [],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "fd28afb3-80ca-4fd4-9f50-7563c28c35e2",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:49:03.532777+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "55fc78f3-70a8-4ad8-b4f3-d4b84e48d67e",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "timeout 0",
+      "tags": [
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "bd79d7a2-135a-4a4e-81cf-cef6b805816b",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:49:03.532781+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "55fc78f3-70a8-4ad8-b4f3-d4b84e48d67e",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "timeout 1",
+      "tags": [
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    }
+  ]
+}
