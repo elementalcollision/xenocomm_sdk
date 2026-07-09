@@ -1,4 +1,16 @@
-# XenoComm coordination PoC
+# XenoComm demo consoles
+
+**Start here:** open [`index.html`](index.html) — a landing page linking the
+three run-and-see consoles below. Each is driven by the real shipped code and
+accuracy-reviewed for honesty.
+
+```bash
+python3 -m http.server 8099 --directory mcp_server/demo   # then open /index.html
+```
+
+---
+
+# Coordination PoC
 
 A runnable, end-to-end proof of concept that exercises the work shipped in the
 M1 arc — coordination, observability, governance, and LLM-proposed protocol
