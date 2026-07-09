@@ -95,6 +95,30 @@ only at the collaboration boundary (a 2-level tree, not mesh-wide); the analytic
 read the in-memory event bus, not the persisted log (they are disjoint); anomaly
 detection is threshold-based; message exchanges are simulated.
 
+---
+
+# S1 HTTP-auth walkthrough
+
+A third console (`auth.html`) walks through the security wired in by S1 (PR #8):
+the streamable-HTTP transport is stdio-by-default and loopback-by-default, and —
+when exposed — every request needs an `Authorization: Bearer` token
+(constant-time compared), with a public bind that has no token refused.
+
+`s1_auth_poc.py` runs the shipped code: the auth ladder drives the real
+`_BearerAuthASGI` middleware through a Starlette test client (no header / wrong
+token → 401; valid token → 200 against a **marker stand-in** app — in production
+`_build_http_app` wraps this same middleware around the real MCP app), and the
+bind matrix + fail-closed refusal call the real `run_server` (with uvicorn
+patched so nothing listens). Captured into `run_s1.json`.
+
+```bash
+mcp_server/.venv/bin/python mcp_server/demo/s1_auth_poc.py
+python3 -m http.server 8099 --directory mcp_server/demo   # open /auth.html
+```
+
+**Honest scope** (also in that console's footer): this is transport-level auth —
+this server implements a single shared bearer token, not per-actor identity.
+
 ## Files
 
 | File | What it is |
@@ -105,3 +129,6 @@ detection is threshold-based; message exchanges are simulated.
 | `e1_observability_poc.py` | the observability scenario — emits `run_e1.json` |
 | `run_e1.json` | a captured observability run |
 | `observability.html` | self-contained observability console |
+| `s1_auth_poc.py` | the HTTP-auth walkthrough — emits `run_s1.json` |
+| `run_s1.json` | a captured auth run |
+| `auth.html` | self-contained auth console |

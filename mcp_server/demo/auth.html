@@ -1,0 +1,349 @@
+<meta charset="utf-8">
+<title>XenoComm HTTP Transport Auth</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #eef2f7; --panel: #ffffff; --panel-2: #f3f6fb; --border: #d9e1ec;
+    --ink: #17202e; --ink-2: #51607a; --ink-3: #8592a8;
+    --accent: #0b8ba6; --accent-2: #0a6f85;
+    --good: #157f5b; --warn: #9a6a12; --crit: #c33b52;
+    --good-bg: #157f5b14; --warn-bg: #9a6a1214; --crit-bg: #c33b5214;
+    --shadow: 0 1px 2px #1b25320f, 0 6px 20px #1b253214;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b111c; --panel: #141d2b; --panel-2: #1a2434; --border: #26324a;
+      --ink: #e7edf6; --ink-2: #9fb0ca; --ink-3: #66768f; --accent: #35cfe8; --accent-2: #86e7f5;
+      --good: #35d399; --warn: #f5c04b; --crit: #fb7185;
+      --good-bg: #35d39916; --warn-bg: #f5c04b16; --crit-bg: #fb718518;
+      --shadow: 0 1px 2px #0006, 0 8px 24px #0007;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f7; --panel: #ffffff; --panel-2: #f3f6fb; --border: #d9e1ec;
+    --ink: #17202e; --ink-2: #51607a; --ink-3: #8592a8; --accent: #0b8ba6; --accent-2: #0a6f85;
+    --good: #157f5b; --warn: #9a6a12; --crit: #c33b52;
+    --good-bg: #157f5b14; --warn-bg: #9a6a1214; --crit-bg: #c33b5214;
+    --shadow: 0 1px 2px #1b25320f, 0 6px 20px #1b253214;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b111c; --panel: #141d2b; --panel-2: #1a2434; --border: #26324a;
+    --ink: #e7edf6; --ink-2: #9fb0ca; --ink-3: #66768f; --accent: #35cfe8; --accent-2: #86e7f5;
+    --good: #35d399; --warn: #f5c04b; --crit: #fb7185;
+    --good-bg: #35d39916; --warn-bg: #f5c04b16; --crit-bg: #fb718518;
+    --shadow: 0 1px 2px #0006, 0 8px 24px #0007;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
+    line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 22px 60px; }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 2px; }
+  h1 { font-size: clamp(22px, 3vw, 30px); margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+
+  header.top { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end;
+    justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .glyph { width: 34px; height: 34px; flex: none; }
+  .sub { color: var(--ink-2); margin: 6px 0 0; font-size: 14px; max-width: 62ch; }
+  .meta { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--panel); font-family: var(--mono); font-size: 12px; }
+  .pill b { color: var(--good); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
+  .dot.pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .dot.pulse { animation: none; } }
+
+  /* posture facts */
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 22px 0; }
+  .fact { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 15px; box-shadow: var(--shadow); }
+  .fact .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
+  .fact .v { font-family: var(--mono); font-size: 15px; margin-top: 6px; display: flex; align-items: center; gap: 7px; }
+  .fact .v .chk { color: var(--good); font-weight: 700; }
+
+  section { margin-top: 26px; }
+  .sec-h { display: flex; align-items: baseline; gap: 10px; margin: 0 0 14px; flex-wrap: wrap; }
+  .sec-h h2 { font-size: 16px; margin: 0; }
+  .sec-h .note { font-size: 12px; color: var(--ink-3); font-family: var(--mono); }
+
+  /* auth ladder (hero) */
+  .ladder { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 760px) { .ladder { grid-template-columns: 1fr; } }
+  .acase { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel);
+    box-shadow: var(--shadow); overflow: hidden; border-top: 3px solid var(--crit); }
+  .acase.ok { border-top-color: var(--good); }
+  .acase .ah { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; }
+  .acase .ah .lbl { font-weight: 650; font-size: 14px; }
+  .badge { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 3px 9px; border-radius: 6px; }
+  .badge.block { color: var(--crit); background: var(--crit-bg); }
+  .badge.allow { color: var(--good); background: var(--good-bg); }
+  .acase .body { padding: 0 14px 14px; }
+  .blk { font-family: var(--mono); font-size: 12px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; overflow-x: auto; }
+  .blk .lab { color: var(--ink-3); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .blk .ln { white-space: nowrap; }
+  .blk .mut { color: var(--ink-3); }
+  .arrow { text-align: center; color: var(--ink-3); font-family: var(--mono); margin: 7px 0; }
+  .stat { font-weight: 700; }
+  .stat.block { color: var(--crit); } .stat.allow { color: var(--good); }
+
+  /* matrix + terminal */
+  .grid2 { display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .card .hd { padding: 13px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .card .hd h3 { margin: 0; font-size: 14px; }
+  .card .hd .note { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+  .card .bd { padding: 14px 16px; }
+  table.m { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  table.m th { text-align: left; color: var(--ink-3); font-weight: 600; text-transform: uppercase; font-size: 10.5px;
+    letter-spacing: .05em; padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  table.m td { padding: 8px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.m tr:last-child td { border-bottom: 0; }
+  .yn { font-weight: 700; } .yn.y { color: var(--good); } .yn.n { color: var(--ink-3); }
+  .out { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; }
+  .out.refuse { color: var(--crit); background: var(--crit-bg); }
+  .out.warn { color: var(--warn); background: var(--warn-bg); }
+  .out.ok { color: var(--good); background: var(--good-bg); }
+
+  .terminal { font-family: var(--mono); font-size: 12.5px; background: var(--panel-2); border: 1px solid var(--border);
+    border-left: 3px solid var(--crit); border-radius: 8px; padding: 12px 14px; white-space: pre-wrap; line-height: 1.55; color: var(--ink); }
+  .terminal .prompt { color: var(--ink-3); }
+
+  .hosts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .host { font-family: var(--mono); font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); display: inline-flex; gap: 7px; align-items: center; }
+  .host .tag { font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+  .host.lo { border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
+  .host.lo .tag { color: var(--good); } .host.pub .tag { color: var(--crit); }
+
+  footer { margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--ink-3);
+    font-size: 12px; font-family: var(--mono); line-height: 1.7; }
+  footer b { color: var(--ink-2); }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brand">
+        <svg class="glyph" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+          <rect x="8" y="15" width="18" height="13" rx="2.5" stroke="var(--accent)" stroke-width="1.6"/>
+          <path d="M11.5 15v-3.5a5.5 5.5 0 0 1 11 0V15" stroke="var(--accent)" stroke-width="1.6"/>
+          <circle cx="17" cy="21" r="2" fill="var(--good)"/>
+        </svg>
+        <div>
+          <p class="eyebrow">XenoComm · S1 security</p>
+          <h1>HTTP Transport Auth</h1>
+        </div>
+      </div>
+      <p class="sub">The streamable-HTTP transport is stdio-by-default and loopback-by-default. When exposed, every request needs an <span class="mono">Authorization: Bearer</span> token — constant-time compared — and a public bind with no token is refused.</p>
+    </div>
+    <div class="meta">
+      <span class="pill"><span class="dot pulse"></span> <b id="verdict">—</b></span>
+      <span class="mono" id="gen-time" style="color:var(--ink-3);font-size:12px"></span>
+    </div>
+  </header>
+
+  <div class="facts" id="facts"></div>
+
+  <section>
+    <div class="sec-h"><h2>The bearer-token gate</h2><span class="note">real requests through <span class="mono">_BearerAuthASGI</span></span></div>
+    <div class="ladder" id="ladder"></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <div class="hd"><h3>Bind posture</h3><span class="note">host × token → outcome</span></div>
+      <div class="bd"><table class="m" id="matrix"></table></div>
+    </div>
+    <div class="card">
+      <div class="hd"><h3>Fail-closed</h3><span class="note">public bind, no token</span></div>
+      <div class="bd"><div class="terminal" id="failclosed"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>Loopback classification</h2><span class="note">what counts as reachable-from-the-network</span></div>
+    <div class="hosts" id="hosts"></div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script id="run-data" type="application/json">{
+  "title": "XenoComm S1 HTTP auth",
+  "generated_utc": "2026-07-09T21:13:35.192333+00:00",
+  "posture": {
+    "default_transport": "stdio",
+    "http_default_host": "127.0.0.1 (loopback)",
+    "auth": "bearer token (XENOCOMM_HTTP_TOKEN)",
+    "constant_time_compare": true,
+    "fail_closed": true
+  },
+  "auth_ladder": [
+    {
+      "label": "No token",
+      "request": {
+        "method": "GET",
+        "path": "/mcp",
+        "authorization": "(none)"
+      },
+      "status": 401,
+      "body": "{\"error\": \"unauthorized\"}",
+      "allowed": false
+    },
+    {
+      "label": "Wrong token",
+      "request": {
+        "method": "GET",
+        "path": "/mcp",
+        "authorization": "Bearer not-\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+      },
+      "status": 401,
+      "body": "{\"error\": \"unauthorized\"}",
+      "allowed": false
+    },
+    {
+      "label": "Valid token",
+      "request": {
+        "method": "GET",
+        "path": "/mcp",
+        "authorization": "Bearer s1-d\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+      },
+      "status": 200,
+      "body": "ok (marker stand-in for the MCP app)",
+      "allowed": true
+    }
+  ],
+  "bind_matrix": [
+    {
+      "host": "127.0.0.1",
+      "loopback": true,
+      "token": false,
+      "outcome": "binds (loopback) \u2014 warns: no auth",
+      "wrapped": false
+    },
+    {
+      "host": "0.0.0.0",
+      "loopback": false,
+      "token": false,
+      "outcome": "REFUSED \u2014 fail closed",
+      "wrapped": null
+    },
+    {
+      "host": "0.0.0.0",
+      "loopback": false,
+      "token": true,
+      "outcome": "binds \u2014 auth-wrapped",
+      "wrapped": true
+    }
+  ],
+  "fail_closed": {
+    "host": "0.0.0.0",
+    "token": false,
+    "refused": true,
+    "message": "Refusing to expose the HTTP transport on '0.0.0.0' without authentication.\nSet XENOCOMM_HTTP_TOKEN to require a bearer token, bind to 127.0.0.1, or front the server with an authenticating proxy."
+  },
+  "loopback_hosts": [
+    {
+      "host": "127.0.0.1",
+      "loopback": true
+    },
+    {
+      "host": "::1",
+      "loopback": true
+    },
+    {
+      "host": "localhost",
+      "loopback": true
+    },
+    {
+      "host": "0.0.0.0",
+      "loopback": false
+    },
+    {
+      "host": "192.168.1.5",
+      "loopback": false
+    },
+    {
+      "host": "example.com",
+      "loopback": false
+    }
+  ],
+  "token_display": "Bearer s1-d\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+}</script>
+<script>
+(function(){
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+  function outClass(o){ o=o.toLowerCase(); return o.indexOf("refus")>=0?"refuse":(o.indexOf("warn")>=0?"warn":"ok"); }
+
+  function render(R){
+    var p = R.posture||{};
+    var blocked = (R.auth_ladder||[]).filter(function(c){return !c.allowed;}).length;
+    document.getElementById("verdict").textContent = blocked+"/"+(R.auth_ladder||[]).length+" unauthorized requests blocked";
+    document.getElementById("gen-time").textContent = "generated "+(R.generated_utc||"").replace("T"," ").replace(/\..*/,"")+" UTC";
+
+    var facts = [
+      {k:"Default transport", v:p.default_transport},
+      {k:"HTTP bind", v:p.http_default_host},
+      {k:"Auth", v:p.auth},
+      {k:"Constant-time compare", v:p.constant_time_compare, chk:true},
+      {k:"Fail-closed", v:p.fail_closed, chk:true}
+    ];
+    document.getElementById("facts").innerHTML = facts.map(function(f){
+      var v = f.chk ? '<span class="chk">✓</span> '+(f.v?"yes":"no") : esc(f.v);
+      return '<div class="fact"><div class="k">'+f.k+'</div><div class="v">'+v+'</div></div>';
+    }).join("");
+
+    // auth ladder
+    document.getElementById("ladder").innerHTML = (R.auth_ladder||[]).map(function(c){
+      var ok = c.allowed;
+      var rq = c.request||{};
+      return '<div class="acase '+(ok?"ok":"")+'">'
+        + '<div class="ah"><span class="lbl">'+esc(c.label)+'</span><span class="badge '+(ok?"allow":"block")+'">'+c.status+' '+(ok?"ALLOWED":"BLOCKED")+'</span></div>'
+        + '<div class="body">'
+        +   '<div class="blk"><span class="lab">request</span><div class="ln">'+esc(rq.method)+' '+esc(rq.path)+'</div>'
+        +     '<div class="ln mut">Authorization: '+esc(rq.authorization)+'</div></div>'
+        +   '<div class="arrow">▼</div>'
+        +   '<div class="blk"><span class="lab">response</span><div class="ln"><span class="stat '+(ok?"allow":"block")+'">'+c.status+'</span> '+esc(c.body)+'</div></div>'
+        + '</div></div>';
+    }).join("");
+
+    // bind matrix
+    var rows = (R.bind_matrix||[]).map(function(r){
+      return '<tr><td>'+esc(r.host)+'</td>'
+        + '<td><span class="yn '+(r.loopback?"y":"n")+'">'+(r.loopback?"loopback":"public")+'</span></td>'
+        + '<td><span class="yn '+(r.token?"y":"n")+'">'+(r.token?"set":"none")+'</span></td>'
+        + '<td><span class="out '+outClass(r.outcome)+'">'+esc(r.outcome)+'</span></td></tr>';
+    }).join("");
+    document.getElementById("matrix").innerHTML = '<thead><tr><th>Host</th><th>Reachability</th><th>Token</th><th>Outcome</th></tr></thead><tbody>'+rows+'</tbody>';
+
+    // fail-closed message
+    var fc = R.fail_closed||{};
+    document.getElementById("failclosed").innerHTML =
+      '<span class="prompt">$ python -m xenocomm_mcp --http --host 0.0.0.0</span>\n'
+      + '<span class="prompt"># XENOCOMM_HTTP_TOKEN unset</span>\n\n' + esc(fc.message||"");
+
+    // loopback hosts
+    document.getElementById("hosts").innerHTML = (R.loopback_hosts||[]).map(function(h){
+      return '<span class="host '+(h.loopback?"lo":"pub")+'">'+esc(h.host)+' <span class="tag">'+(h.loopback?"loopback":"public")+'</span></span>';
+    }).join("");
+
+    document.getElementById("foot").innerHTML =
+      'A <b>real run</b> of the shipped auth code: the ladder drives the actual <b>_BearerAuthASGI</b> middleware through a Starlette test client. The valid-token request reaches a <b>marker stand-in</b> app (the 200 "ok") — in production <b>_build_http_app</b> wraps this exact middleware around the real MCP app. The bind matrix + refusal call the real <b>run_server</b> (with uvicorn patched so nothing listens). '
+      + 'The token compare uses <b>hmac.compare_digest</b> (constant-time), and a public bind with no token exits before binding (fail-closed). '
+      + 'Honest scope: this is <b>transport-level auth</b> — this server implements a single shared bearer token, not per-actor identity. Loopback-only by default; a token is required to expose it off-host, or front it with an authenticating proxy. '
+      + 'Regenerate with <b>mcp_server/.venv/bin/python demo/s1_auth_poc.py</b>.';
+  }
+
+  var embedded = null;
+  try { var raw = document.getElementById("run-data").textContent.trim(); if (raw && raw[0]==="{") embedded = JSON.parse(raw); } catch(e){}
+  fetch("run_s1.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(render).catch(function(){ if(embedded) render(embedded); else document.getElementById("facts").innerHTML='<div class="fact">Run s1_auth_poc.py to generate run_s1.json.</div>'; });
+})();
+</script>
