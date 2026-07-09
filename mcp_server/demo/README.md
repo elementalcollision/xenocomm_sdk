@@ -69,10 +69,39 @@ Artifact) it renders the committed `run.json` embedded in the page; served over
 HTTP it fetches the latest `run.json` instead. Regenerate `run.json` any time by
 re-running the script.
 
+---
+
+# E1 observability deep-dive
+
+A second console (`observability.html`) zooms in on the observability substrate
+wired in by E1 (PR #6): the typed `FlowEvent` bus, causal linking via
+`parent_event_id`, the analytics engine, and gzip-JSONL persistence.
+
+`e1_observability_poc.py` drives several real collaborations — each
+`initiate_collaboration` emits a `collaboration_initiated` root whose alignment
+and session events inherit it as their `parent_event_id`, forming a real (if
+shallow) event tree — plus a little negotiation traffic. It captures the causal
+trees, a sample event's full anatomy, per-flow-type and per-agent metrics, the
+throughput trend, the error summary, and the gzip-JSONL file it wrote, into
+`run_e1.json`.
+
+```bash
+mcp_server/.venv/bin/python mcp_server/demo/e1_observability_poc.py
+python3 -m http.server 8099 --directory mcp_server/demo   # open /observability.html
+```
+
+**Honest scope** (also in that console's footer): causal linking is populated
+only at the collaboration boundary (a 2-level tree, not mesh-wide); the analytics
+read the in-memory event bus, not the persisted log (they are disjoint); anomaly
+detection is threshold-based; message exchanges are simulated.
+
 ## Files
 
 | File | What it is |
 |---|---|
-| `coordination_poc.py` | the scenario — drives the real components, emits `run.json` |
-| `run.json` | a captured run (the dashboard's data) |
-| `dashboard.html` | self-contained console visualizing a run |
+| `coordination_poc.py` | the coordination scenario — drives the real components, emits `run.json` |
+| `run.json` | a captured coordination run (the dashboard's data) |
+| `dashboard.html` | self-contained coordination console |
+| `e1_observability_poc.py` | the observability scenario — emits `run_e1.json` |
+| `run_e1.json` | a captured observability run |
+| `observability.html` | self-contained observability console |
