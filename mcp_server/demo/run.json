@@ -1,0 +1,1050 @@
+{
+  "title": "XenoComm coordination PoC",
+  "generated_utc": "2026-07-09T20:34:07.339564+00:00",
+  "llm": {
+    "used": true,
+    "model": "deepseek/deepseek-v4-flash",
+    "goal": "reduce coordination latency and eliminate the batched-exchange timeout between two agents exchanging small messages",
+    "informed_by_anomalies": 3
+  },
+  "agents": [
+    {
+      "id": "planner-claude",
+      "vendor": "anthropic",
+      "domains": [
+        "planning",
+        "shared"
+      ],
+      "events": 13,
+      "errors": 4,
+      "error_rate": 0.308
+    },
+    {
+      "id": "executor-deepseek",
+      "vendor": "deepseek",
+      "domains": [
+        "execution",
+        "shared"
+      ],
+      "events": 13,
+      "errors": 4,
+      "error_rate": 0.308
+    },
+    {
+      "id": "reviewer-gpt",
+      "vendor": "openai",
+      "domains": [
+        "review",
+        "shared"
+      ],
+      "events": 1,
+      "errors": 0,
+      "error_rate": 0.0
+    }
+  ],
+  "timeline": [
+    {
+      "event_id": "7cb9d364-54d4-473a-ae90-ffae033063a3",
+      "flow_type": "system",
+      "event_name": "observation_started",
+      "timestamp": "2026-07-09T20:33:56.476262+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {},
+      "summary": "Observation system initialized",
+      "tags": [
+        "system",
+        "startup"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "989574ea-ff6b-47e8-af2e-2d501fa02573",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:33:56.503440+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'planner-claude' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "8822bd3d-aa39-4043-b595-f749f6ba7a70",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:33:56.503464+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'executor-deepseek' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "0c0f4991-f77b-4bae-82a7-620faeb703fb",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:33:56.503477+00:00",
+      "severity": "info",
+      "source_agent": "reviewer-gpt",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'reviewer-gpt' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "a3355db1-2749-4b8d-b0de-90ec61891cd9",
+      "flow_type": "collaboration",
+      "event_name": "collaboration_initiated",
+      "timestamp": "2026-07-09T20:33:56.503486+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "planner-claude:executor-deepseek",
+      "metrics": {},
+      "summary": "Collaboration initiated: planner-claude <-> executor-deepseek",
+      "tags": [
+        "collaboration",
+        "root"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "e4026769-813b-4d87-99f2-4bdf0066c3db",
+      "flow_type": "alignment",
+      "event_name": "alignment_started",
+      "timestamp": "2026-07-09T20:33:56.503494+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "planner-claude:executor-deepseek",
+      "metrics": {},
+      "summary": "Checking alignment: planner-claude <-> executor-deepseek",
+      "tags": [
+        "alignment",
+        "start"
+      ],
+      "parent_event_id": "a3355db1-2749-4b8d-b0de-90ec61891cd9",
+      "duration_ms": null
+    },
+    {
+      "event_id": "3b656e8d-c4dc-4d66-b173-8a95c7818d29",
+      "flow_type": "alignment",
+      "event_name": "alignment_completed",
+      "timestamp": "2026-07-09T20:33:56.503573+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "planner-claude:executor-deepseek",
+      "metrics": {
+        "score": 0.6666666666666666,
+        "dimensions_checked": 6,
+        "aligned_count": 3,
+        "duration_ms": 0.06899999999999999
+      },
+      "summary": "Alignment score: 66.7% (3/6 aligned)",
+      "tags": [
+        "alignment",
+        "complete"
+      ],
+      "parent_event_id": "a3355db1-2749-4b8d-b0de-90ec61891cd9",
+      "duration_ms": 0.06899999999999999
+    },
+    {
+      "event_id": "1b78d6b6-fbd0-480a-b5bc-ac05b8b277fa",
+      "flow_type": "collaboration",
+      "event_name": "session_created",
+      "timestamp": "2026-07-09T20:33:56.503578+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "a685732f-71aa-436c-996d-1decda2c2280",
+      "metrics": {},
+      "summary": "Collaboration: planner-claude <-> executor-deepseek",
+      "tags": [
+        "collaboration",
+        "start"
+      ],
+      "parent_event_id": "a3355db1-2749-4b8d-b0de-90ec61891cd9",
+      "duration_ms": null
+    },
+    {
+      "event_id": "abb65fa0-073c-4e65-a103-d19297682a48",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:33:56.503621+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 42
+      },
+      "summary": "exchange 0 delivered",
+      "tags": [
+        "exchange"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "9fc4394f-6c63-43e0-9b3a-709bb6b65599",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:33:56.503625+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 45
+      },
+      "summary": "exchange 1 delivered",
+      "tags": [
+        "exchange"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f0f9cc3e-1857-4499-ab57-eb8524eb00e0",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:33:56.503629+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 48
+      },
+      "summary": "exchange 2 delivered",
+      "tags": [
+        "exchange"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "4e558f7e-0e78-4955-b54b-1ed5fd89be43",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:33:56.503632+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 51
+      },
+      "summary": "exchange 3 delivered",
+      "tags": [
+        "exchange"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f2fc5583-537e-489b-bc1b-f2427a216b2c",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:33:56.503636+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "batched exchange timed out (attempt 1) at batch_size=32 under gzip",
+      "tags": [
+        "exchange",
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "5948be5e-eb50-4d50-b140-e47e8021663e",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:33:56.503639+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "batched exchange timed out (attempt 2) at batch_size=32 under gzip",
+      "tags": [
+        "exchange",
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "61391ff0-1c25-41b7-bc9b-b3f5c938d9cc",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:33:56.503642+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "batched exchange timed out (attempt 3) at batch_size=32 under gzip",
+      "tags": [
+        "exchange",
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "414e3306-a28c-4720-afd9-fa87cd3cf25a",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:33:56.503645+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "batched exchange timed out (attempt 4) at batch_size=32 under gzip",
+      "tags": [
+        "exchange",
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "00a2cf6a-2214-4425-a96b-ced3c3ecae1e",
+      "flow_type": "emergence",
+      "event_name": "variant_proposed",
+      "timestamp": "2026-07-09T20:34:07.338734+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "change_count": 3
+      },
+      "summary": "New variant '29ba2d06-c699-4291-ab77-6587668d136e': Switch to immediate per-message exchange with no compression to eliminate batching latency and timeout.",
+      "tags": [
+        "emergence",
+        "proposal"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f7cebeed-6955-40a6-a2a7-12b896941578",
+      "flow_type": "emergence",
+      "event_name": "governance_submitted",
+      "timestamp": "2026-07-09T20:34:07.338805+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e"
+      },
+      "summary": "Variant 29ba2d06-c699-4291-ab77-6587668d136e submitted for governance",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "be1f48f3-ee59-4130-91d4-0f9b7cd34e10",
+      "flow_type": "emergence",
+      "event_name": "llm_variant_proposed",
+      "timestamp": "2026-07-09T20:34:07.338825+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "model": "deepseek/deepseek-v4-flash"
+      },
+      "summary": "LLM (deepseek/deepseek-v4-flash) proposed variant: Switch to immediate per-message exchange with no compression to eliminate batching latency and timeout.",
+      "tags": [
+        "emergence",
+        "llm",
+        "proposal"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f2f07527-596e-40db-98a7-ee164219697c",
+      "flow_type": "emergence",
+      "event_name": "governance_vote_cast",
+      "timestamp": "2026-07-09T20:34:07.338885+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "agent_id": "planner-claude",
+        "vote": "for"
+      },
+      "summary": "planner-claude voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f3e0380a-410e-41d3-bbb2-1f66a442cca9",
+      "flow_type": "emergence",
+      "event_name": "governance_vote_cast",
+      "timestamp": "2026-07-09T20:34:07.338930+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "agent_id": "executor-deepseek",
+        "vote": "for"
+      },
+      "summary": "executor-deepseek voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "82cda24a-63b3-4864-addc-95e930750f5e",
+      "flow_type": "emergence",
+      "event_name": "governance_vote_cast",
+      "timestamp": "2026-07-09T20:34:07.338969+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "agent_id": "reviewer-gpt",
+        "vote": "for"
+      },
+      "summary": "reviewer-gpt voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "40acba65-e291-4e95-8b4c-ecabac72ab29",
+      "flow_type": "emergence",
+      "event_name": "governance_vote_passed",
+      "timestamp": "2026-07-09T20:34:07.338994+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "for": 3,
+        "against": 0,
+        "total": 3,
+        "ratio": 1.0,
+        "quorum": 3,
+        "quorum_met": true,
+        "approval_ratio": 0.66,
+        "passed": true
+      },
+      "summary": "29ba2d06-c699-4291-ab77-6587668d136e passed the vote; awaiting human approval",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "90b6e5a0-7cb5-4fec-bfbc-7c708c8c6f00",
+      "flow_type": "emergence",
+      "event_name": "governance_human_approved",
+      "timestamp": "2026-07-09T20:34:07.339035+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "approver": "operator"
+      },
+      "summary": "operator approved 29ba2d06-c699-4291-ab77-6587668d136e: ship the canary",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "fffff66d-c5e4-4e09-995b-7faba8427fd0",
+      "flow_type": "emergence",
+      "event_name": "canary_started",
+      "timestamp": "2026-07-09T20:34:07.339071+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "percentage": 0.1
+      },
+      "summary": "Canary deployment: 29ba2d06-c699-4291-ab77-6587668d136e at 10%",
+      "tags": [
+        "emergence",
+        "canary"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "172bc8a5-8bf6-4583-9db0-595b3c469532",
+      "flow_type": "emergence",
+      "event_name": "governance_promoted_to_canary",
+      "timestamp": "2026-07-09T20:34:07.339093+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "canary_percentage": 0.1
+      },
+      "summary": "29ba2d06-c699-4291-ab77-6587668d136e promoted to canary at 0.1",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    }
+  ],
+  "analytics": {
+    "flow_metrics": {
+      "system": {
+        "flow_type": "system",
+        "event_count": 1,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 1.0,
+        "unique_agents": 0,
+        "unique_sessions": 0,
+        "top_events": {
+          "observation_started": 1
+        }
+      },
+      "agent_lifecycle": {
+        "flow_type": "agent_lifecycle",
+        "event_count": 3,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 3.0,
+        "unique_agents": 3,
+        "unique_sessions": 0,
+        "top_events": {
+          "agent_registered": 3
+        }
+      },
+      "collaboration": {
+        "flow_type": "collaboration",
+        "event_count": 2,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 2.0,
+        "unique_agents": 2,
+        "unique_sessions": 2,
+        "top_events": {
+          "collaboration_initiated": 1,
+          "session_created": 1
+        }
+      },
+      "alignment": {
+        "flow_type": "alignment",
+        "event_count": 2,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": 0.06899999999999999,
+        "min_duration_ms": 0.06899999999999999,
+        "max_duration_ms": 0.06899999999999999,
+        "events_per_minute": 2.0,
+        "unique_agents": 2,
+        "unique_sessions": 1,
+        "top_events": {
+          "alignment_started": 1,
+          "alignment_completed": 1
+        }
+      },
+      "negotiation": {
+        "flow_type": "negotiation",
+        "event_count": 8,
+        "error_count": 4,
+        "error_rate": 0.5,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 8.0,
+        "unique_agents": 2,
+        "unique_sessions": 1,
+        "top_events": {
+          "message_exchanged": 4,
+          "exchange_failed": 4
+        }
+      },
+      "emergence": {
+        "flow_type": "emergence",
+        "event_count": 10,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 10.0,
+        "unique_agents": 0,
+        "unique_sessions": 0,
+        "top_events": {
+          "governance_vote_cast": 3,
+          "variant_proposed": 1,
+          "governance_submitted": 1,
+          "llm_variant_proposed": 1,
+          "governance_vote_passed": 1,
+          "governance_human_approved": 1,
+          "canary_started": 1,
+          "governance_promoted_to_canary": 1
+        }
+      }
+    },
+    "agent_metrics": {
+      "planner-claude": {
+        "agent_id": "planner-claude",
+        "total_events": 13,
+        "as_source": 7,
+        "as_target": 6,
+        "alignments": 2,
+        "negotiations": 8,
+        "collaborations": 2,
+        "error_events": 4,
+        "last_active": "2026-07-09T20:33:56.503645+00:00"
+      },
+      "executor-deepseek": {
+        "agent_id": "executor-deepseek",
+        "total_events": 13,
+        "as_source": 7,
+        "as_target": 6,
+        "alignments": 2,
+        "negotiations": 8,
+        "collaborations": 2,
+        "error_events": 4,
+        "last_active": "2026-07-09T20:33:56.503645+00:00"
+      },
+      "reviewer-gpt": {
+        "agent_id": "reviewer-gpt",
+        "total_events": 1,
+        "as_source": 1,
+        "as_target": 0,
+        "alignments": 0,
+        "negotiations": 0,
+        "collaborations": 0,
+        "error_events": 0,
+        "last_active": "2026-07-09T20:33:56.503477+00:00"
+      }
+    },
+    "throughput_trend": [
+      {
+        "start": "2026-07-09T19:34:07.339266+00:00",
+        "end": "2026-07-09T19:39:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:39:07.339266+00:00",
+        "end": "2026-07-09T19:44:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:44:07.339266+00:00",
+        "end": "2026-07-09T19:49:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:49:07.339266+00:00",
+        "end": "2026-07-09T19:54:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:54:07.339266+00:00",
+        "end": "2026-07-09T19:59:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:59:07.339266+00:00",
+        "end": "2026-07-09T20:04:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:04:07.339266+00:00",
+        "end": "2026-07-09T20:09:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:09:07.339266+00:00",
+        "end": "2026-07-09T20:14:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:14:07.339266+00:00",
+        "end": "2026-07-09T20:19:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:19:07.339266+00:00",
+        "end": "2026-07-09T20:24:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:24:07.339266+00:00",
+        "end": "2026-07-09T20:29:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:29:07.339266+00:00",
+        "end": "2026-07-09T20:34:07.339266+00:00",
+        "event_count": 26,
+        "events_per_minute": 5.2
+      }
+    ],
+    "error_summary": {
+      "total_errors": 4,
+      "total_events": 26,
+      "error_rate": 0.15384615384615385,
+      "by_event_name": {
+        "exchange_failed": 4
+      },
+      "by_flow_type": {
+        "negotiation": 4
+      },
+      "recent_errors": [
+        {
+          "event_id": "f2fc5583-537e-489b-bc1b-f2427a216b2c",
+          "flow_type": "negotiation",
+          "event_name": "exchange_failed",
+          "timestamp": "2026-07-09T20:33:56.503636+00:00",
+          "severity": "error",
+          "source_agent": "executor-deepseek",
+          "target_agent": "planner-claude",
+          "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+          "metrics": {
+            "latency_ms": 5000,
+            "error": "timeout"
+          },
+          "summary": "batched exchange timed out (attempt 1) at batch_size=32 under gzip",
+          "tags": [
+            "exchange",
+            "error"
+          ],
+          "parent_event_id": null,
+          "duration_ms": null
+        },
+        {
+          "event_id": "5948be5e-eb50-4d50-b140-e47e8021663e",
+          "flow_type": "negotiation",
+          "event_name": "exchange_failed",
+          "timestamp": "2026-07-09T20:33:56.503639+00:00",
+          "severity": "error",
+          "source_agent": "executor-deepseek",
+          "target_agent": "planner-claude",
+          "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+          "metrics": {
+            "latency_ms": 5000,
+            "error": "timeout"
+          },
+          "summary": "batched exchange timed out (attempt 2) at batch_size=32 under gzip",
+          "tags": [
+            "exchange",
+            "error"
+          ],
+          "parent_event_id": null,
+          "duration_ms": null
+        },
+        {
+          "event_id": "61391ff0-1c25-41b7-bc9b-b3f5c938d9cc",
+          "flow_type": "negotiation",
+          "event_name": "exchange_failed",
+          "timestamp": "2026-07-09T20:33:56.503642+00:00",
+          "severity": "error",
+          "source_agent": "executor-deepseek",
+          "target_agent": "planner-claude",
+          "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+          "metrics": {
+            "latency_ms": 5000,
+            "error": "timeout"
+          },
+          "summary": "batched exchange timed out (attempt 3) at batch_size=32 under gzip",
+          "tags": [
+            "exchange",
+            "error"
+          ],
+          "parent_event_id": null,
+          "duration_ms": null
+        },
+        {
+          "event_id": "414e3306-a28c-4720-afd9-fa87cd3cf25a",
+          "flow_type": "negotiation",
+          "event_name": "exchange_failed",
+          "timestamp": "2026-07-09T20:33:56.503645+00:00",
+          "severity": "error",
+          "source_agent": "executor-deepseek",
+          "target_agent": "planner-claude",
+          "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+          "metrics": {
+            "latency_ms": 5000,
+            "error": "timeout"
+          },
+          "summary": "batched exchange timed out (attempt 4) at batch_size=32 under gzip",
+          "tags": [
+            "exchange",
+            "error"
+          ],
+          "parent_event_id": null,
+          "duration_ms": null
+        }
+      ]
+    },
+    "anomalies": [
+      {
+        "type": "high_error_rate",
+        "description": "Error rate is 15.4%",
+        "severity": "warning",
+        "value": 0.15384615384615385
+      },
+      {
+        "type": "agent_high_errors",
+        "description": "Agent 'planner-claude' has 4 errors",
+        "severity": "warning",
+        "agent_id": "planner-claude",
+        "error_rate": 0.3076923076923077
+      },
+      {
+        "type": "agent_high_errors",
+        "description": "Agent 'executor-deepseek' has 4 errors",
+        "severity": "warning",
+        "agent_id": "executor-deepseek",
+        "error_rate": 0.3076923076923077
+      }
+    ],
+    "alerts": {
+      "total_alerts": 0,
+      "unacknowledged": 0,
+      "by_severity": {},
+      "recent_critical": []
+    }
+  },
+  "governance": {
+    "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+    "description": "Switch to immediate per-message exchange with no compression to eliminate batching latency and timeout.",
+    "changes": {
+      "batch_size": 1,
+      "timeout_ms": 0,
+      "compression": "none"
+    },
+    "rationale": "Small messages are delayed by batch accumulation and compression overhead; sending each message immediately removes the batch timeout and reduces latency.",
+    "source": "llm",
+    "status": "promoted",
+    "tally": {
+      "for": 3,
+      "against": 0,
+      "total": 3,
+      "ratio": 1.0,
+      "quorum": 3,
+      "quorum_met": true,
+      "approval_ratio": 0.66,
+      "passed": true
+    },
+    "votes": [
+      {
+        "agent_id": "planner-claude",
+        "vote": "for",
+        "rationale": "improves coordination",
+        "at": "2026-07-09T20:34:07.338852+00:00"
+      },
+      {
+        "agent_id": "executor-deepseek",
+        "vote": "for",
+        "rationale": "improves coordination",
+        "at": "2026-07-09T20:34:07.338909+00:00"
+      },
+      {
+        "agent_id": "reviewer-gpt",
+        "vote": "for",
+        "rationale": "improves coordination",
+        "at": "2026-07-09T20:34:07.338951+00:00"
+      }
+    ],
+    "human_decision": {
+      "approver": "operator",
+      "decision": "approve",
+      "reason": "ship the canary",
+      "at": "2026-07-09T20:34:07.339017+00:00"
+    },
+    "audit": [
+      {
+        "event": "governance_submitted",
+        "summary": "Variant 29ba2d06-c699-4291-ab77-6587668d136e submitted for governance",
+        "at": "2026-07-09T20:34:07.338779+00:00",
+        "status": "voting",
+        "metrics": {}
+      },
+      {
+        "event": "governance_vote_cast",
+        "summary": "planner-claude voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+        "at": "2026-07-09T20:34:07.338868+00:00",
+        "status": "voting",
+        "metrics": {
+          "agent_id": "planner-claude",
+          "vote": "for"
+        }
+      },
+      {
+        "event": "governance_vote_cast",
+        "summary": "executor-deepseek voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+        "at": "2026-07-09T20:34:07.338916+00:00",
+        "status": "voting",
+        "metrics": {
+          "agent_id": "executor-deepseek",
+          "vote": "for"
+        }
+      },
+      {
+        "event": "governance_vote_cast",
+        "summary": "reviewer-gpt voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+        "at": "2026-07-09T20:34:07.338956+00:00",
+        "status": "voting",
+        "metrics": {
+          "agent_id": "reviewer-gpt",
+          "vote": "for"
+        }
+      },
+      {
+        "event": "governance_vote_passed",
+        "summary": "29ba2d06-c699-4291-ab77-6587668d136e passed the vote; awaiting human approval",
+        "at": "2026-07-09T20:34:07.338982+00:00",
+        "status": "vote_passed",
+        "metrics": {
+          "for": 3,
+          "against": 0,
+          "total": 3,
+          "ratio": 1.0,
+          "quorum": 3,
+          "quorum_met": true,
+          "approval_ratio": 0.66,
+          "passed": true
+        }
+      },
+      {
+        "event": "governance_human_approved",
+        "summary": "operator approved 29ba2d06-c699-4291-ab77-6587668d136e: ship the canary",
+        "at": "2026-07-09T20:34:07.339023+00:00",
+        "status": "approved",
+        "metrics": {
+          "approver": "operator"
+        }
+      },
+      {
+        "event": "governance_promoted_to_canary",
+        "summary": "29ba2d06-c699-4291-ab77-6587668d136e promoted to canary at 0.1",
+        "at": "2026-07-09T20:34:07.339082+00:00",
+        "status": "promoted",
+        "metrics": {
+          "canary_percentage": 0.1
+        }
+      }
+    ]
+  },
+  "summary": {
+    "agents": 3,
+    "events": 26,
+    "errors": 4,
+    "anomalies": 3,
+    "variant_status": "promoted",
+    "llm_used": true
+  }
+}

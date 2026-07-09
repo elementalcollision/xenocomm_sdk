@@ -1,0 +1,1426 @@
+<meta charset="utf-8">
+<title>XenoComm Coordination Console</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: light dark;
+    /* neutrals — cool slate bias, chosen not defaulted */
+    --bg: #eef2f7; --panel: #ffffff; --panel-2: #f3f6fb; --border: #d9e1ec;
+    --ink: #17202e; --ink-2: #51607a; --ink-3: #8592a8;
+    --accent: #0b8ba6; --accent-2: #0a6f85;
+    --good: #157f5b; --warn: #9a6a12; --crit: #c33b52;
+    --good-bg: #157f5b1a; --warn-bg: #9a6a121a; --crit-bg: #c33b521a;
+    /* flow-type categorical */
+    --ft-agent_lifecycle: #5b60e0; --ft-alignment: #0e8fb0; --ft-negotiation: #7b3ff2;
+    --ft-emergence: #b52bc9; --ft-collaboration: #2563eb; --ft-system: #64748b;
+    /* vendor tints */
+    --v-anthropic: #c15f3c; --v-deepseek: #3f5cf0; --v-openai: #0a8f6d;
+    --shadow: 0 1px 2px #1b25320f, 0 6px 20px #1b253214;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b111c; --panel: #141d2b; --panel-2: #1a2434; --border: #26324a;
+      --ink: #e7edf6; --ink-2: #9fb0ca; --ink-3: #66768f;
+      --accent: #35cfe8; --accent-2: #86e7f5;
+      --good: #35d399; --warn: #f5c04b; --crit: #fb7185;
+      --good-bg: #35d3991f; --warn-bg: #f5c04b1f; --crit-bg: #fb71851f;
+      --ft-agent_lifecycle: #838bff; --ft-alignment: #35c6e6; --ft-negotiation: #a888ff;
+      --ft-emergence: #e067f0; --ft-collaboration: #6a97ff; --ft-system: #8c9bb5;
+      --v-anthropic: #e08a63; --v-deepseek: #7f93ff; --v-openai: #34c99e;
+      --shadow: 0 1px 2px #0006, 0 8px 24px #0007;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f7; --panel: #ffffff; --panel-2: #f3f6fb; --border: #d9e1ec;
+    --ink: #17202e; --ink-2: #51607a; --ink-3: #8592a8;
+    --accent: #0b8ba6; --accent-2: #0a6f85;
+    --good: #157f5b; --warn: #9a6a12; --crit: #c33b52;
+    --good-bg: #157f5b1a; --warn-bg: #9a6a121a; --crit-bg: #c33b521a;
+    --ft-agent_lifecycle: #5b60e0; --ft-alignment: #0e8fb0; --ft-negotiation: #7b3ff2;
+    --ft-emergence: #b52bc9; --ft-collaboration: #2563eb; --ft-system: #64748b;
+    --v-anthropic: #c15f3c; --v-deepseek: #3f5cf0; --v-openai: #0a8f6d;
+    --shadow: 0 1px 2px #1b25320f, 0 6px 20px #1b253214;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b111c; --panel: #141d2b; --panel-2: #1a2434; --border: #26324a;
+    --ink: #e7edf6; --ink-2: #9fb0ca; --ink-3: #66768f;
+    --accent: #35cfe8; --accent-2: #86e7f5;
+    --good: #35d399; --warn: #f5c04b; --crit: #fb7185;
+    --good-bg: #35d3991f; --warn-bg: #f5c04b1f; --crit-bg: #fb71851f;
+    --ft-agent_lifecycle: #838bff; --ft-alignment: #35c6e6; --ft-negotiation: #a888ff;
+    --ft-emergence: #e067f0; --ft-collaboration: #6a97ff; --ft-system: #8c9bb5;
+    --v-anthropic: #e08a63; --v-deepseek: #7f93ff; --v-openai: #34c99e;
+    --shadow: 0 1px 2px #0006, 0 8px 24px #0007;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 22px 60px; }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0 0 10px;
+  }
+  h1 { font-size: clamp(22px, 3vw, 30px); margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+  a { color: var(--accent-2); }
+
+  /* header */
+  header.top { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end;
+    justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .glyph { width: 34px; height: 34px; flex: none; }
+  .sub { color: var(--ink-2); margin: 6px 0 0; font-size: 14px; max-width: 60ch; }
+  .meta { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; font-size: 12px; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--panel); font-family: var(--mono); font-size: 12px; }
+  .pill.live b { color: var(--good); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+  .dot.pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .dot.pulse { animation: none; } }
+
+  /* stat tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin: 22px 0; }
+  .tile { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; box-shadow: var(--shadow); }
+  .tile .k { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .tile .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 30px;
+    line-height: 1.1; margin-top: 6px; letter-spacing: -.02em; }
+  .tile .v small { font-size: 14px; color: var(--ink-2); }
+  .tile.warn .v { color: var(--warn); } .tile.crit .v { color: var(--crit); } .tile.good .v { color: var(--good); }
+
+  section { margin-top: 26px; }
+  .sec-h { display: flex; align-items: baseline; gap: 10px; margin: 0 0 14px; }
+  .sec-h h2 { font-size: 15px; margin: 0; letter-spacing: .01em; }
+  .sec-h .note { font-size: 12px; color: var(--ink-3); font-family: var(--mono); }
+
+  /* story pipeline */
+  .pipe { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .step { flex: 1 0 150px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 13px; position: relative; box-shadow: var(--shadow); }
+  .step .n { font-family: var(--mono); font-size: 11px; color: var(--accent-2); font-weight: 700; }
+  .step .t { font-weight: 650; font-size: 13.5px; margin: 3px 0 4px; }
+  .step .d { font-size: 12px; color: var(--ink-2); font-family: var(--mono); }
+  .step.err { border-color: color-mix(in srgb, var(--crit) 45%, var(--border)); }
+  .step.err .n { color: var(--crit); }
+
+  /* layout grid — equal-height columns; the event stream fills its column */
+  .grid { display: grid; grid-template-columns: 1fr 1.35fr; gap: 18px; align-items: stretch; }
+  .grid > .card { display: flex; flex-direction: column; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } .grid > .card { display: block; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden; }
+  .card .hd { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex;
+    align-items: center; justify-content: space-between; gap: 10px; }
+  .card .hd h3 { margin: 0; font-size: 14px; }
+  .card .bd { padding: 14px 16px; }
+  .stack { display: flex; flex-direction: column; gap: 18px; }
+
+  /* governance */
+  .flow { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .flow .fstep { flex: 1 1 auto; min-width: 92px; text-align: center; border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 6px; background: var(--panel-2); }
+  .flow .fstep .fl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-3); }
+  .flow .fstep .fv { font-family: var(--mono); font-size: 13px; margin-top: 3px; font-weight: 650; }
+  .flow .fstep.done { border-color: color-mix(in srgb, var(--good) 55%, var(--border)); background: var(--good-bg); }
+  .flow .fstep.done .fv { color: var(--good); }
+  .diff { font-family: var(--mono); font-size: 12.5px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; }
+  .diff .row { display: flex; gap: 8px; white-space: nowrap; }
+  .diff .del { color: var(--crit); } .diff .add { color: var(--good); }
+  .kv { font-size: 13px; color: var(--ink-2); margin-top: 10px; }
+  .kv b { color: var(--ink); font-family: var(--mono); }
+  .audit { margin-top: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .audit .ln { display: flex; gap: 8px; font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); }
+  .audit .ln .mk { color: var(--good); }
+
+  /* anomalies */
+  .anom { display: flex; flex-direction: column; gap: 8px; }
+  .anom .a { border-left: 3px solid var(--warn); background: var(--warn-bg);
+    border-radius: 0 8px 8px 0; padding: 8px 12px; }
+  .anom .a.critical { border-color: var(--crit); background: var(--crit-bg); }
+  .anom .a .ah { font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-2); display: flex; justify-content: space-between; }
+  .anom .a .ad { font-size: 13px; margin-top: 2px; }
+  .empty { color: var(--ink-3); font-size: 13px; font-family: var(--mono); }
+
+  /* agents */
+  .agent { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+  .agent:first-child { border-top: 0; }
+  .vtag { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: 6px; color: #fff; flex: none; }
+  .agent .id { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .agent .grow { flex: 1; min-width: 0; }
+  .bar { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin-top: 6px; }
+  .bar > i { display: block; height: 100%; background: var(--good); }
+  .bar > i.hot { background: var(--crit); }
+  .agent .num { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--ink-2); text-align: right; }
+
+  /* event stream (hero) */
+  .stream { overflow: auto; flex: 1 1 auto; min-height: 0; }
+  @media (max-width: 860px) { .stream { flex: none; max-height: 620px; } }
+  table.ev { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  table.ev th { position: sticky; top: 0; background: var(--panel); z-index: 1; text-align: left;
+    font-weight: 600; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; font-size: 10.5px;
+    padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  table.ev td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.ev tr:hover td { background: var(--panel-2); }
+  table.ev tr.err td { background: var(--crit-bg); }
+  table.ev tr.err td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
+  .t { color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .ftbadge { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .ftbadge .sq { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .enm { color: var(--ink); }
+  tr.err .enm { color: var(--crit); }
+  .route { color: var(--ink-2); white-space: nowrap; }
+  .route .arw { color: var(--ink-3); }
+  .sm { color: var(--ink-2); }
+  td.sumcell { max-width: 340px; }
+  td.sumcell .sm { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  footer { margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--border);
+    color: var(--ink-3); font-size: 12px; font-family: var(--mono); line-height: 1.7; }
+  footer b { color: var(--ink-2); }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brand">
+        <svg class="glyph" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+          <circle cx="17" cy="17" r="15.5" stroke="var(--accent)" stroke-width="1.4" opacity=".5"/>
+          <circle cx="9" cy="12" r="3" fill="var(--v-anthropic)"/>
+          <circle cx="25" cy="12" r="3" fill="var(--v-deepseek)"/>
+          <circle cx="17" cy="26" r="3" fill="var(--v-openai)"/>
+          <circle cx="17" cy="17" r="2.4" fill="var(--accent)"/>
+          <path d="M9 12 17 17 25 12M17 26 17 17" stroke="var(--accent)" stroke-width="1.2" opacity=".7"/>
+        </svg>
+        <div>
+          <p class="eyebrow" style="margin:0 0 2px">XenoComm · proof of concept</p>
+          <h1>Coordination Console</h1>
+        </div>
+      </div>
+      <p class="sub">Three independent agents coordinate through one broker. Every step — collaboration, negotiation, a live degradation, and a governed LLM protocol change — lands in a single typed event stream.</p>
+    </div>
+    <div class="meta">
+      <span class="pill live"><span class="dot pulse"></span> <b id="llm-badge">—</b></span>
+      <span class="mono" id="gen-time" style="color:var(--ink-3)"></span>
+    </div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <div class="sec-h"><h2>What happened</h2><span class="note">an ordered run — register → govern</span></div>
+    <div class="pipe" id="pipe"></div>
+  </section>
+
+  <div class="grid">
+    <div class="stack">
+      <div class="card">
+        <div class="hd"><h3>Governed protocol change</h3><span class="mono" id="gov-status" style="font-size:12px"></span></div>
+        <div class="bd" id="gov"></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>Anomalies flagged</h3><span class="mono" style="font-size:12px;color:var(--ink-3)">by the observability plane</span></div>
+        <div class="bd"><div class="anom" id="anom"></div></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>Agent health</h3><span class="mono" style="font-size:12px;color:var(--ink-3)">events · error rate</span></div>
+        <div class="bd" id="agents"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd">
+        <h3>Unified event stream</h3>
+        <span class="mono" id="stream-count" style="font-size:12px;color:var(--ink-3)"></span>
+      </div>
+      <div class="stream">
+        <table class="ev">
+          <thead><tr><th>Time</th><th>Flow</th><th>Event</th><th>Route</th><th>Detail</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<script id="run-data" type="application/json">{
+  "title": "XenoComm coordination PoC",
+  "generated_utc": "2026-07-09T20:34:07.339564+00:00",
+  "llm": {
+    "used": true,
+    "model": "deepseek/deepseek-v4-flash",
+    "goal": "reduce coordination latency and eliminate the batched-exchange timeout between two agents exchanging small messages",
+    "informed_by_anomalies": 3
+  },
+  "agents": [
+    {
+      "id": "planner-claude",
+      "vendor": "anthropic",
+      "domains": [
+        "planning",
+        "shared"
+      ],
+      "events": 13,
+      "errors": 4,
+      "error_rate": 0.308
+    },
+    {
+      "id": "executor-deepseek",
+      "vendor": "deepseek",
+      "domains": [
+        "execution",
+        "shared"
+      ],
+      "events": 13,
+      "errors": 4,
+      "error_rate": 0.308
+    },
+    {
+      "id": "reviewer-gpt",
+      "vendor": "openai",
+      "domains": [
+        "review",
+        "shared"
+      ],
+      "events": 1,
+      "errors": 0,
+      "error_rate": 0.0
+    }
+  ],
+  "timeline": [
+    {
+      "event_id": "7cb9d364-54d4-473a-ae90-ffae033063a3",
+      "flow_type": "system",
+      "event_name": "observation_started",
+      "timestamp": "2026-07-09T20:33:56.476262+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {},
+      "summary": "Observation system initialized",
+      "tags": [
+        "system",
+        "startup"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "989574ea-ff6b-47e8-af2e-2d501fa02573",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:33:56.503440+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'planner-claude' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "8822bd3d-aa39-4043-b595-f749f6ba7a70",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:33:56.503464+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'executor-deepseek' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "0c0f4991-f77b-4bae-82a7-620faeb703fb",
+      "flow_type": "agent_lifecycle",
+      "event_name": "agent_registered",
+      "timestamp": "2026-07-09T20:33:56.503477+00:00",
+      "severity": "info",
+      "source_agent": "reviewer-gpt",
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "capability_count": 1,
+        "domain_count": 2
+      },
+      "summary": "Agent 'reviewer-gpt' joined the network",
+      "tags": [
+        "lifecycle",
+        "registration"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "a3355db1-2749-4b8d-b0de-90ec61891cd9",
+      "flow_type": "collaboration",
+      "event_name": "collaboration_initiated",
+      "timestamp": "2026-07-09T20:33:56.503486+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "planner-claude:executor-deepseek",
+      "metrics": {},
+      "summary": "Collaboration initiated: planner-claude <-> executor-deepseek",
+      "tags": [
+        "collaboration",
+        "root"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "e4026769-813b-4d87-99f2-4bdf0066c3db",
+      "flow_type": "alignment",
+      "event_name": "alignment_started",
+      "timestamp": "2026-07-09T20:33:56.503494+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "planner-claude:executor-deepseek",
+      "metrics": {},
+      "summary": "Checking alignment: planner-claude <-> executor-deepseek",
+      "tags": [
+        "alignment",
+        "start"
+      ],
+      "parent_event_id": "a3355db1-2749-4b8d-b0de-90ec61891cd9",
+      "duration_ms": null
+    },
+    {
+      "event_id": "3b656e8d-c4dc-4d66-b173-8a95c7818d29",
+      "flow_type": "alignment",
+      "event_name": "alignment_completed",
+      "timestamp": "2026-07-09T20:33:56.503573+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "planner-claude:executor-deepseek",
+      "metrics": {
+        "score": 0.6666666666666666,
+        "dimensions_checked": 6,
+        "aligned_count": 3,
+        "duration_ms": 0.06899999999999999
+      },
+      "summary": "Alignment score: 66.7% (3/6 aligned)",
+      "tags": [
+        "alignment",
+        "complete"
+      ],
+      "parent_event_id": "a3355db1-2749-4b8d-b0de-90ec61891cd9",
+      "duration_ms": 0.06899999999999999
+    },
+    {
+      "event_id": "1b78d6b6-fbd0-480a-b5bc-ac05b8b277fa",
+      "flow_type": "collaboration",
+      "event_name": "session_created",
+      "timestamp": "2026-07-09T20:33:56.503578+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "a685732f-71aa-436c-996d-1decda2c2280",
+      "metrics": {},
+      "summary": "Collaboration: planner-claude <-> executor-deepseek",
+      "tags": [
+        "collaboration",
+        "start"
+      ],
+      "parent_event_id": "a3355db1-2749-4b8d-b0de-90ec61891cd9",
+      "duration_ms": null
+    },
+    {
+      "event_id": "abb65fa0-073c-4e65-a103-d19297682a48",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:33:56.503621+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 42
+      },
+      "summary": "exchange 0 delivered",
+      "tags": [
+        "exchange"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "9fc4394f-6c63-43e0-9b3a-709bb6b65599",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:33:56.503625+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 45
+      },
+      "summary": "exchange 1 delivered",
+      "tags": [
+        "exchange"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f0f9cc3e-1857-4499-ab57-eb8524eb00e0",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:33:56.503629+00:00",
+      "severity": "info",
+      "source_agent": "planner-claude",
+      "target_agent": "executor-deepseek",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 48
+      },
+      "summary": "exchange 2 delivered",
+      "tags": [
+        "exchange"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "4e558f7e-0e78-4955-b54b-1ed5fd89be43",
+      "flow_type": "negotiation",
+      "event_name": "message_exchanged",
+      "timestamp": "2026-07-09T20:33:56.503632+00:00",
+      "severity": "info",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 51
+      },
+      "summary": "exchange 3 delivered",
+      "tags": [
+        "exchange"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f2fc5583-537e-489b-bc1b-f2427a216b2c",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:33:56.503636+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "batched exchange timed out (attempt 1) at batch_size=32 under gzip",
+      "tags": [
+        "exchange",
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "5948be5e-eb50-4d50-b140-e47e8021663e",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:33:56.503639+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "batched exchange timed out (attempt 2) at batch_size=32 under gzip",
+      "tags": [
+        "exchange",
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "61391ff0-1c25-41b7-bc9b-b3f5c938d9cc",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:33:56.503642+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "batched exchange timed out (attempt 3) at batch_size=32 under gzip",
+      "tags": [
+        "exchange",
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "414e3306-a28c-4720-afd9-fa87cd3cf25a",
+      "flow_type": "negotiation",
+      "event_name": "exchange_failed",
+      "timestamp": "2026-07-09T20:33:56.503645+00:00",
+      "severity": "error",
+      "source_agent": "executor-deepseek",
+      "target_agent": "planner-claude",
+      "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+      "metrics": {
+        "latency_ms": 5000,
+        "error": "timeout"
+      },
+      "summary": "batched exchange timed out (attempt 4) at batch_size=32 under gzip",
+      "tags": [
+        "exchange",
+        "error"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "00a2cf6a-2214-4425-a96b-ced3c3ecae1e",
+      "flow_type": "emergence",
+      "event_name": "variant_proposed",
+      "timestamp": "2026-07-09T20:34:07.338734+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "change_count": 3
+      },
+      "summary": "New variant '29ba2d06-c699-4291-ab77-6587668d136e': Switch to immediate per-message exchange with no compression to eliminate batching latency and timeout.",
+      "tags": [
+        "emergence",
+        "proposal"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f7cebeed-6955-40a6-a2a7-12b896941578",
+      "flow_type": "emergence",
+      "event_name": "governance_submitted",
+      "timestamp": "2026-07-09T20:34:07.338805+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e"
+      },
+      "summary": "Variant 29ba2d06-c699-4291-ab77-6587668d136e submitted for governance",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "be1f48f3-ee59-4130-91d4-0f9b7cd34e10",
+      "flow_type": "emergence",
+      "event_name": "llm_variant_proposed",
+      "timestamp": "2026-07-09T20:34:07.338825+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "model": "deepseek/deepseek-v4-flash"
+      },
+      "summary": "LLM (deepseek/deepseek-v4-flash) proposed variant: Switch to immediate per-message exchange with no compression to eliminate batching latency and timeout.",
+      "tags": [
+        "emergence",
+        "llm",
+        "proposal"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f2f07527-596e-40db-98a7-ee164219697c",
+      "flow_type": "emergence",
+      "event_name": "governance_vote_cast",
+      "timestamp": "2026-07-09T20:34:07.338885+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "agent_id": "planner-claude",
+        "vote": "for"
+      },
+      "summary": "planner-claude voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "f3e0380a-410e-41d3-bbb2-1f66a442cca9",
+      "flow_type": "emergence",
+      "event_name": "governance_vote_cast",
+      "timestamp": "2026-07-09T20:34:07.338930+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "agent_id": "executor-deepseek",
+        "vote": "for"
+      },
+      "summary": "executor-deepseek voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "82cda24a-63b3-4864-addc-95e930750f5e",
+      "flow_type": "emergence",
+      "event_name": "governance_vote_cast",
+      "timestamp": "2026-07-09T20:34:07.338969+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "agent_id": "reviewer-gpt",
+        "vote": "for"
+      },
+      "summary": "reviewer-gpt voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "40acba65-e291-4e95-8b4c-ecabac72ab29",
+      "flow_type": "emergence",
+      "event_name": "governance_vote_passed",
+      "timestamp": "2026-07-09T20:34:07.338994+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "for": 3,
+        "against": 0,
+        "total": 3,
+        "ratio": 1.0,
+        "quorum": 3,
+        "quorum_met": true,
+        "approval_ratio": 0.66,
+        "passed": true
+      },
+      "summary": "29ba2d06-c699-4291-ab77-6587668d136e passed the vote; awaiting human approval",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "90b6e5a0-7cb5-4fec-bfbc-7c708c8c6f00",
+      "flow_type": "emergence",
+      "event_name": "governance_human_approved",
+      "timestamp": "2026-07-09T20:34:07.339035+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "approver": "operator"
+      },
+      "summary": "operator approved 29ba2d06-c699-4291-ab77-6587668d136e: ship the canary",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "fffff66d-c5e4-4e09-995b-7faba8427fd0",
+      "flow_type": "emergence",
+      "event_name": "canary_started",
+      "timestamp": "2026-07-09T20:34:07.339071+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "percentage": 0.1
+      },
+      "summary": "Canary deployment: 29ba2d06-c699-4291-ab77-6587668d136e at 10%",
+      "tags": [
+        "emergence",
+        "canary"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    },
+    {
+      "event_id": "172bc8a5-8bf6-4583-9db0-595b3c469532",
+      "flow_type": "emergence",
+      "event_name": "governance_promoted_to_canary",
+      "timestamp": "2026-07-09T20:34:07.339093+00:00",
+      "severity": "info",
+      "source_agent": null,
+      "target_agent": null,
+      "session_id": null,
+      "metrics": {
+        "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+        "canary_percentage": 0.1
+      },
+      "summary": "29ba2d06-c699-4291-ab77-6587668d136e promoted to canary at 0.1",
+      "tags": [
+        "emergence",
+        "governance"
+      ],
+      "parent_event_id": null,
+      "duration_ms": null
+    }
+  ],
+  "analytics": {
+    "flow_metrics": {
+      "system": {
+        "flow_type": "system",
+        "event_count": 1,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 1.0,
+        "unique_agents": 0,
+        "unique_sessions": 0,
+        "top_events": {
+          "observation_started": 1
+        }
+      },
+      "agent_lifecycle": {
+        "flow_type": "agent_lifecycle",
+        "event_count": 3,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 3.0,
+        "unique_agents": 3,
+        "unique_sessions": 0,
+        "top_events": {
+          "agent_registered": 3
+        }
+      },
+      "collaboration": {
+        "flow_type": "collaboration",
+        "event_count": 2,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 2.0,
+        "unique_agents": 2,
+        "unique_sessions": 2,
+        "top_events": {
+          "collaboration_initiated": 1,
+          "session_created": 1
+        }
+      },
+      "alignment": {
+        "flow_type": "alignment",
+        "event_count": 2,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": 0.06899999999999999,
+        "min_duration_ms": 0.06899999999999999,
+        "max_duration_ms": 0.06899999999999999,
+        "events_per_minute": 2.0,
+        "unique_agents": 2,
+        "unique_sessions": 1,
+        "top_events": {
+          "alignment_started": 1,
+          "alignment_completed": 1
+        }
+      },
+      "negotiation": {
+        "flow_type": "negotiation",
+        "event_count": 8,
+        "error_count": 4,
+        "error_rate": 0.5,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 8.0,
+        "unique_agents": 2,
+        "unique_sessions": 1,
+        "top_events": {
+          "message_exchanged": 4,
+          "exchange_failed": 4
+        }
+      },
+      "emergence": {
+        "flow_type": "emergence",
+        "event_count": 10,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": null,
+        "min_duration_ms": null,
+        "max_duration_ms": null,
+        "events_per_minute": 10.0,
+        "unique_agents": 0,
+        "unique_sessions": 0,
+        "top_events": {
+          "governance_vote_cast": 3,
+          "variant_proposed": 1,
+          "governance_submitted": 1,
+          "llm_variant_proposed": 1,
+          "governance_vote_passed": 1,
+          "governance_human_approved": 1,
+          "canary_started": 1,
+          "governance_promoted_to_canary": 1
+        }
+      }
+    },
+    "agent_metrics": {
+      "planner-claude": {
+        "agent_id": "planner-claude",
+        "total_events": 13,
+        "as_source": 7,
+        "as_target": 6,
+        "alignments": 2,
+        "negotiations": 8,
+        "collaborations": 2,
+        "error_events": 4,
+        "last_active": "2026-07-09T20:33:56.503645+00:00"
+      },
+      "executor-deepseek": {
+        "agent_id": "executor-deepseek",
+        "total_events": 13,
+        "as_source": 7,
+        "as_target": 6,
+        "alignments": 2,
+        "negotiations": 8,
+        "collaborations": 2,
+        "error_events": 4,
+        "last_active": "2026-07-09T20:33:56.503645+00:00"
+      },
+      "reviewer-gpt": {
+        "agent_id": "reviewer-gpt",
+        "total_events": 1,
+        "as_source": 1,
+        "as_target": 0,
+        "alignments": 0,
+        "negotiations": 0,
+        "collaborations": 0,
+        "error_events": 0,
+        "last_active": "2026-07-09T20:33:56.503477+00:00"
+      }
+    },
+    "throughput_trend": [
+      {
+        "start": "2026-07-09T19:34:07.339266+00:00",
+        "end": "2026-07-09T19:39:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:39:07.339266+00:00",
+        "end": "2026-07-09T19:44:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:44:07.339266+00:00",
+        "end": "2026-07-09T19:49:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:49:07.339266+00:00",
+        "end": "2026-07-09T19:54:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:54:07.339266+00:00",
+        "end": "2026-07-09T19:59:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T19:59:07.339266+00:00",
+        "end": "2026-07-09T20:04:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:04:07.339266+00:00",
+        "end": "2026-07-09T20:09:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:09:07.339266+00:00",
+        "end": "2026-07-09T20:14:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:14:07.339266+00:00",
+        "end": "2026-07-09T20:19:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:19:07.339266+00:00",
+        "end": "2026-07-09T20:24:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:24:07.339266+00:00",
+        "end": "2026-07-09T20:29:07.339266+00:00",
+        "event_count": 0,
+        "events_per_minute": 0.0
+      },
+      {
+        "start": "2026-07-09T20:29:07.339266+00:00",
+        "end": "2026-07-09T20:34:07.339266+00:00",
+        "event_count": 26,
+        "events_per_minute": 5.2
+      }
+    ],
+    "error_summary": {
+      "total_errors": 4,
+      "total_events": 26,
+      "error_rate": 0.15384615384615385,
+      "by_event_name": {
+        "exchange_failed": 4
+      },
+      "by_flow_type": {
+        "negotiation": 4
+      },
+      "recent_errors": [
+        {
+          "event_id": "f2fc5583-537e-489b-bc1b-f2427a216b2c",
+          "flow_type": "negotiation",
+          "event_name": "exchange_failed",
+          "timestamp": "2026-07-09T20:33:56.503636+00:00",
+          "severity": "error",
+          "source_agent": "executor-deepseek",
+          "target_agent": "planner-claude",
+          "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+          "metrics": {
+            "latency_ms": 5000,
+            "error": "timeout"
+          },
+          "summary": "batched exchange timed out (attempt 1) at batch_size=32 under gzip",
+          "tags": [
+            "exchange",
+            "error"
+          ],
+          "parent_event_id": null,
+          "duration_ms": null
+        },
+        {
+          "event_id": "5948be5e-eb50-4d50-b140-e47e8021663e",
+          "flow_type": "negotiation",
+          "event_name": "exchange_failed",
+          "timestamp": "2026-07-09T20:33:56.503639+00:00",
+          "severity": "error",
+          "source_agent": "executor-deepseek",
+          "target_agent": "planner-claude",
+          "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+          "metrics": {
+            "latency_ms": 5000,
+            "error": "timeout"
+          },
+          "summary": "batched exchange timed out (attempt 2) at batch_size=32 under gzip",
+          "tags": [
+            "exchange",
+            "error"
+          ],
+          "parent_event_id": null,
+          "duration_ms": null
+        },
+        {
+          "event_id": "61391ff0-1c25-41b7-bc9b-b3f5c938d9cc",
+          "flow_type": "negotiation",
+          "event_name": "exchange_failed",
+          "timestamp": "2026-07-09T20:33:56.503642+00:00",
+          "severity": "error",
+          "source_agent": "executor-deepseek",
+          "target_agent": "planner-claude",
+          "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+          "metrics": {
+            "latency_ms": 5000,
+            "error": "timeout"
+          },
+          "summary": "batched exchange timed out (attempt 3) at batch_size=32 under gzip",
+          "tags": [
+            "exchange",
+            "error"
+          ],
+          "parent_event_id": null,
+          "duration_ms": null
+        },
+        {
+          "event_id": "414e3306-a28c-4720-afd9-fa87cd3cf25a",
+          "flow_type": "negotiation",
+          "event_name": "exchange_failed",
+          "timestamp": "2026-07-09T20:33:56.503645+00:00",
+          "severity": "error",
+          "source_agent": "executor-deepseek",
+          "target_agent": "planner-claude",
+          "session_id": "709787ab-7245-4324-b565-47454a0294c7",
+          "metrics": {
+            "latency_ms": 5000,
+            "error": "timeout"
+          },
+          "summary": "batched exchange timed out (attempt 4) at batch_size=32 under gzip",
+          "tags": [
+            "exchange",
+            "error"
+          ],
+          "parent_event_id": null,
+          "duration_ms": null
+        }
+      ]
+    },
+    "anomalies": [
+      {
+        "type": "high_error_rate",
+        "description": "Error rate is 15.4%",
+        "severity": "warning",
+        "value": 0.15384615384615385
+      },
+      {
+        "type": "agent_high_errors",
+        "description": "Agent 'planner-claude' has 4 errors",
+        "severity": "warning",
+        "agent_id": "planner-claude",
+        "error_rate": 0.3076923076923077
+      },
+      {
+        "type": "agent_high_errors",
+        "description": "Agent 'executor-deepseek' has 4 errors",
+        "severity": "warning",
+        "agent_id": "executor-deepseek",
+        "error_rate": 0.3076923076923077
+      }
+    ],
+    "alerts": {
+      "total_alerts": 0,
+      "unacknowledged": 0,
+      "by_severity": {},
+      "recent_critical": []
+    }
+  },
+  "governance": {
+    "variant_id": "29ba2d06-c699-4291-ab77-6587668d136e",
+    "description": "Switch to immediate per-message exchange with no compression to eliminate batching latency and timeout.",
+    "changes": {
+      "batch_size": 1,
+      "timeout_ms": 0,
+      "compression": "none"
+    },
+    "rationale": "Small messages are delayed by batch accumulation and compression overhead; sending each message immediately removes the batch timeout and reduces latency.",
+    "source": "llm",
+    "status": "promoted",
+    "tally": {
+      "for": 3,
+      "against": 0,
+      "total": 3,
+      "ratio": 1.0,
+      "quorum": 3,
+      "quorum_met": true,
+      "approval_ratio": 0.66,
+      "passed": true
+    },
+    "votes": [
+      {
+        "agent_id": "planner-claude",
+        "vote": "for",
+        "rationale": "improves coordination",
+        "at": "2026-07-09T20:34:07.338852+00:00"
+      },
+      {
+        "agent_id": "executor-deepseek",
+        "vote": "for",
+        "rationale": "improves coordination",
+        "at": "2026-07-09T20:34:07.338909+00:00"
+      },
+      {
+        "agent_id": "reviewer-gpt",
+        "vote": "for",
+        "rationale": "improves coordination",
+        "at": "2026-07-09T20:34:07.338951+00:00"
+      }
+    ],
+    "human_decision": {
+      "approver": "operator",
+      "decision": "approve",
+      "reason": "ship the canary",
+      "at": "2026-07-09T20:34:07.339017+00:00"
+    },
+    "audit": [
+      {
+        "event": "governance_submitted",
+        "summary": "Variant 29ba2d06-c699-4291-ab77-6587668d136e submitted for governance",
+        "at": "2026-07-09T20:34:07.338779+00:00",
+        "status": "voting",
+        "metrics": {}
+      },
+      {
+        "event": "governance_vote_cast",
+        "summary": "planner-claude voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+        "at": "2026-07-09T20:34:07.338868+00:00",
+        "status": "voting",
+        "metrics": {
+          "agent_id": "planner-claude",
+          "vote": "for"
+        }
+      },
+      {
+        "event": "governance_vote_cast",
+        "summary": "executor-deepseek voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+        "at": "2026-07-09T20:34:07.338916+00:00",
+        "status": "voting",
+        "metrics": {
+          "agent_id": "executor-deepseek",
+          "vote": "for"
+        }
+      },
+      {
+        "event": "governance_vote_cast",
+        "summary": "reviewer-gpt voted for on 29ba2d06-c699-4291-ab77-6587668d136e",
+        "at": "2026-07-09T20:34:07.338956+00:00",
+        "status": "voting",
+        "metrics": {
+          "agent_id": "reviewer-gpt",
+          "vote": "for"
+        }
+      },
+      {
+        "event": "governance_vote_passed",
+        "summary": "29ba2d06-c699-4291-ab77-6587668d136e passed the vote; awaiting human approval",
+        "at": "2026-07-09T20:34:07.338982+00:00",
+        "status": "vote_passed",
+        "metrics": {
+          "for": 3,
+          "against": 0,
+          "total": 3,
+          "ratio": 1.0,
+          "quorum": 3,
+          "quorum_met": true,
+          "approval_ratio": 0.66,
+          "passed": true
+        }
+      },
+      {
+        "event": "governance_human_approved",
+        "summary": "operator approved 29ba2d06-c699-4291-ab77-6587668d136e: ship the canary",
+        "at": "2026-07-09T20:34:07.339023+00:00",
+        "status": "approved",
+        "metrics": {
+          "approver": "operator"
+        }
+      },
+      {
+        "event": "governance_promoted_to_canary",
+        "summary": "29ba2d06-c699-4291-ab77-6587668d136e promoted to canary at 0.1",
+        "at": "2026-07-09T20:34:07.339082+00:00",
+        "status": "promoted",
+        "metrics": {
+          "canary_percentage": 0.1
+        }
+      }
+    ]
+  },
+  "summary": {
+    "agents": 3,
+    "events": 26,
+    "errors": 4,
+    "anomalies": 3,
+    "variant_status": "promoted",
+    "llm_used": true
+  }
+}</script>
+<script>
+(function () {
+  var FT = ["agent_lifecycle","alignment","negotiation","emergence","collaboration","system"];
+  function ftColor(t){ return getComputedStyle(document.documentElement).getPropertyValue("--ft-"+t).trim() || "var(--ink-3)"; }
+  function vColor(v){ var m={anthropic:"--v-anthropic",deepseek:"--v-deepseek",openai:"--v-openai"}; return m[v] ? "var("+m[v]+")" : "var(--ink-3)"; }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function hhmmss(iso){ try { var d=new Date(iso); return d.toISOString().substr(11,12); } catch(e){ return ""; } }
+
+  function render(RUN) {
+    // header meta
+    var llm = RUN.llm || {};
+    document.getElementById("llm-badge").textContent = llm.used ? ("LLM · " + (llm.model||"")) : "LLM · stub (no key)";
+    document.getElementById("gen-time").textContent = "generated " + (RUN.generated_utc||"").replace("T"," ").replace(/\..*/,"") + " UTC";
+
+    // tiles (summary first)
+    var s = RUN.summary || {};
+    var tiles = [
+      {k:"Agents", v:s.agents},
+      {k:"Typed events", v:s.events},
+      {k:"Errors", v:s.errors, cls: s.errors ? "crit" : "good"},
+      {k:"Anomalies", v:s.anomalies, cls: s.anomalies ? "warn" : "good"},
+      {k:"Variant", v:"<small>"+esc(s.variant_status||"—")+"</small>", cls:"good"},
+      {k:"Proposer", v:"<small>"+(s.llm_used?"OpenRouter":"stub")+"</small>"}
+    ];
+    document.getElementById("tiles").innerHTML = tiles.map(function(t){
+      return '<div class="tile '+(t.cls||"")+'"><div class="k">'+t.k+'</div><div class="v">'+(t.v==null?"—":t.v)+'</div></div>';
+    }).join("");
+
+    // story pipeline (derived from the run)
+    var g = RUN.governance || {};
+    var tally = g.tally || {};
+    var steps = [
+      {t:"Register", d:s.agents+" agents · 3 vendors"},
+      {t:"Collaborate", d:"alignment computed"},
+      {t:"Negotiate", d:"batch_size=32 · gzip"},
+      {t:"Degrade", d:s.errors+" timeouts", err:true},
+      {t:"Propose", d:(llm.used?"LLM":"stub")+" variant"},
+      {t:"Vote", d:(tally["for"]||0)+"/"+(tally.total||0)+" for"},
+      {t:"Approve", d:"human gate → "+(s.variant_status||"")}
+    ];
+    document.getElementById("pipe").innerHTML = steps.map(function(st,i){
+      return '<div class="step'+(st.err?" err":"")+'"><div class="n">'+(i+1).toString().padStart(2,"0")+'</div>'
+        + '<div class="t">'+esc(st.t)+'</div><div class="d">'+esc(st.d)+'</div></div>';
+    }).join("");
+
+    // governance card
+    document.getElementById("gov-status").textContent = (g.status||"").toUpperCase();
+    document.getElementById("gov-status").style.color = g.status==="promoted" ? "var(--good)" : "var(--ink-2)";
+    var changes = g.changes || {};
+    var diffRows = Object.keys(changes).map(function(k){
+      return '<div class="row"><span class="add">+ '+esc(k)+" = "+esc(JSON.stringify(changes[k]))+'</span></div>';
+    }).join("") || '<div class="row sm">no changes</div>';
+    var flow = [
+      {fl:"Proposed", fv:(g.source==="llm"?"LLM":"stub"), done:true},
+      {fl:"Vote", fv:(tally["for"]||0)+"/"+(tally.total||0), done:(g.status!=="voting")},
+      {fl:"Human gate", fv:(g.human_decision?g.human_decision.decision:"—"), done:!!g.human_decision},
+      {fl:"Canary", fv:(g.status==="promoted"?"live":"—"), done:g.status==="promoted"}
+    ];
+    var audit = (g.audit||[]).map(function(a){
+      return '<div class="ln"><span class="mk">✓</span><span>'+esc(a.event)+'</span></div>';
+    }).join("");
+    document.getElementById("gov").innerHTML =
+      '<div class="flow">'+flow.map(function(f){ return '<div class="fstep'+(f.done?" done":"")+'"><div class="fl">'+f.fl+'</div><div class="fv">'+esc(f.fv)+'</div></div>'; }).join("")+'</div>'
+      + '<div class="diff">'+diffRows+'</div>'
+      + '<div class="kv">'+esc(g.description||"")+'</div>'
+      + (g.rationale ? '<div class="kv" style="color:var(--ink-3)">“'+esc(g.rationale)+'”</div>' : "")
+      + '<div class="kv">approved by <b>'+esc(g.human_decision?g.human_decision.approver:"—")+'</b> · quorum <b>'+(tally.quorum||"—")+'</b> · ratio <b>'+((tally.ratio!=null?tally.ratio:"—"))+'</b></div>'
+      + '<div class="audit">'+audit+'</div>';
+
+    // anomalies
+    var an = (RUN.analytics && RUN.analytics.anomalies) || [];
+    document.getElementById("anom").innerHTML = an.length ? an.map(function(a){
+      return '<div class="a '+(a.severity==="critical"?"critical":"")+'"><div class="ah"><span>'+esc(a.type)+'</span><span>'+esc(a.severity)+'</span></div><div class="ad">'+esc(a.description)+'</div></div>';
+    }).join("") : '<div class="empty">no anomalies in this window</div>';
+
+    // agents
+    document.getElementById("agents").innerHTML = (RUN.agents||[]).map(function(a){
+      var rate = a.error_rate||0, pct = Math.min(100, Math.round(rate*100));
+      return '<div class="agent"><span class="vtag" style="background:'+vColor(a.vendor)+'">'+esc(a.vendor)+'</span>'
+        + '<div class="grow"><div class="id">'+esc(a.id)+'</div><div class="bar"><i class="'+(rate>=0.3?"hot":"")+'" style="width:'+Math.max(pct,3)+'%"></i></div></div>'
+        + '<div class="num">'+a.events+' ev<br>'+(pct)+'% err</div></div>';
+    }).join("");
+
+    // event stream
+    var evs = RUN.timeline || [];
+    document.getElementById("stream-count").textContent = evs.length + " events · " + (new Set(evs.map(function(e){return e.flow_type;})).size) + " flow types";
+    document.getElementById("rows").innerHTML = evs.map(function(e){
+      var isErr = e.severity==="error" || e.severity==="critical";
+      var route = e.source_agent ? (esc(e.source_agent)+(e.target_agent?' <span class="arw">→</span> '+esc(e.target_agent):"")) : '<span class="sm">—</span>';
+      return '<tr class="'+(isErr?"err":"")+'">'
+        + '<td class="t">'+hhmmss(e.timestamp)+'</td>'
+        + '<td><span class="ftbadge"><span class="sq" style="background:'+ftColor(e.flow_type)+'"></span>'+esc(e.flow_type.replace("_"," "))+'</span></td>'
+        + '<td class="enm">'+esc(e.event_name)+'</td>'
+        + '<td class="route">'+route+'</td>'
+        + '<td class="sumcell"><span class="sm" title="'+esc(e.summary)+'">'+esc(e.summary||"")+'</span></td>'
+        + '</tr>';
+    }).join("");
+
+    // footer
+    document.getElementById("foot").innerHTML =
+      'This is a <b>real run</b>: registration, collaboration, negotiation, the typed event stream, anomaly detection, and the vote → human-gate → canary governance are all real tool execution against the shipped code'
+      + (llm.used
+          ? ', and the protocol proposal came from <b>OpenRouter · '+esc(llm.model)+'</b> — passed the '+(llm.informed_by_anomalies||0)+' flagged anomalies as context, so it is informed by the failures'
+          : ', with a deterministic offline stub standing in for the LLM proposal')
+      + '. The inter-agent <b>message exchanges are simulated traffic</b> — XenoComm coordinates and observes agents; it is not a message transport, so there is no real data plane to fail. '
+      + 'Honest scope: alignment is lexical (not semantic); analytics read the in-memory event bus; anomaly detection is threshold-based. '
+      + 'Regenerate with <b>mcp_server/.venv/bin/python demo/coordination_poc.py</b>.';
+  }
+
+  // Prefer a live run.json when served; fall back to the embedded snapshot (and the Artifact).
+  var embedded = null;
+  try { var raw = document.getElementById("run-data").textContent.trim(); if (raw && raw[0] === "{") embedded = JSON.parse(raw); } catch (e) {}
+  fetch("run.json").then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(d){ render(d); })
+    .catch(function(){ if (embedded) render(embedded); else document.getElementById("tiles").innerHTML = '<div class="empty">Run the demo to generate run.json.</div>'; });
+})();
+</script>
