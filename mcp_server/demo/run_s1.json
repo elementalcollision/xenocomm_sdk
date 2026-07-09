@@ -1,0 +1,102 @@
+{
+  "title": "XenoComm S1 HTTP auth",
+  "generated_utc": "2026-07-09T21:13:35.192333+00:00",
+  "posture": {
+    "default_transport": "stdio",
+    "http_default_host": "127.0.0.1 (loopback)",
+    "auth": "bearer token (XENOCOMM_HTTP_TOKEN)",
+    "constant_time_compare": true,
+    "fail_closed": true
+  },
+  "auth_ladder": [
+    {
+      "label": "No token",
+      "request": {
+        "method": "GET",
+        "path": "/mcp",
+        "authorization": "(none)"
+      },
+      "status": 401,
+      "body": "{\"error\": \"unauthorized\"}",
+      "allowed": false
+    },
+    {
+      "label": "Wrong token",
+      "request": {
+        "method": "GET",
+        "path": "/mcp",
+        "authorization": "Bearer not-\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+      },
+      "status": 401,
+      "body": "{\"error\": \"unauthorized\"}",
+      "allowed": false
+    },
+    {
+      "label": "Valid token",
+      "request": {
+        "method": "GET",
+        "path": "/mcp",
+        "authorization": "Bearer s1-d\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+      },
+      "status": 200,
+      "body": "ok (marker stand-in for the MCP app)",
+      "allowed": true
+    }
+  ],
+  "bind_matrix": [
+    {
+      "host": "127.0.0.1",
+      "loopback": true,
+      "token": false,
+      "outcome": "binds (loopback) \u2014 warns: no auth",
+      "wrapped": false
+    },
+    {
+      "host": "0.0.0.0",
+      "loopback": false,
+      "token": false,
+      "outcome": "REFUSED \u2014 fail closed",
+      "wrapped": null
+    },
+    {
+      "host": "0.0.0.0",
+      "loopback": false,
+      "token": true,
+      "outcome": "binds \u2014 auth-wrapped",
+      "wrapped": true
+    }
+  ],
+  "fail_closed": {
+    "host": "0.0.0.0",
+    "token": false,
+    "refused": true,
+    "message": "Refusing to expose the HTTP transport on '0.0.0.0' without authentication.\nSet XENOCOMM_HTTP_TOKEN to require a bearer token, bind to 127.0.0.1, or front the server with an authenticating proxy."
+  },
+  "loopback_hosts": [
+    {
+      "host": "127.0.0.1",
+      "loopback": true
+    },
+    {
+      "host": "::1",
+      "loopback": true
+    },
+    {
+      "host": "localhost",
+      "loopback": true
+    },
+    {
+      "host": "0.0.0.0",
+      "loopback": false
+    },
+    {
+      "host": "192.168.1.5",
+      "loopback": false
+    },
+    {
+      "host": "example.com",
+      "loopback": false
+    }
+  ],
+  "token_display": "Bearer s1-d\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+}
