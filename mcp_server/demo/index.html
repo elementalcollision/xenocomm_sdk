@@ -1,0 +1,162 @@
+<meta charset="utf-8">
+<title>XenoComm Demo Consoles</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #eef2f7; --panel: #ffffff; --panel-2: #f3f6fb; --border: #d9e1ec;
+    --ink: #17202e; --ink-2: #51607a; --ink-3: #8592a8;
+    --accent: #0b8ba6; --accent-2: #0a6f85;
+    --good: #157f5b;
+    --v-anthropic: #c15f3c; --v-deepseek: #3f5cf0; --v-openai: #0a8f6d;
+    --ft-collaboration: #2563eb; --ft-alignment: #0e8fb0;
+    --shadow: 0 1px 2px #1b25320f, 0 6px 20px #1b253214;
+    --shadow-h: 0 2px 6px #1b253214, 0 16px 40px #1b25321f;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b111c; --panel: #141d2b; --panel-2: #1a2434; --border: #26324a;
+      --ink: #e7edf6; --ink-2: #9fb0ca; --ink-3: #66768f; --accent: #35cfe8; --accent-2: #86e7f5; --good: #35d399;
+      --v-anthropic: #e08a63; --v-deepseek: #7f93ff; --v-openai: #34c99e;
+      --ft-collaboration: #6a97ff; --ft-alignment: #35c6e6;
+      --shadow: 0 1px 2px #0006, 0 8px 24px #0007; --shadow-h: 0 2px 8px #0007, 0 20px 48px #0009;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f7; --panel: #ffffff; --panel-2: #f3f6fb; --border: #d9e1ec;
+    --ink: #17202e; --ink-2: #51607a; --ink-3: #8592a8; --accent: #0b8ba6; --accent-2: #0a6f85; --good: #157f5b;
+    --v-anthropic: #c15f3c; --v-deepseek: #3f5cf0; --v-openai: #0a8f6d;
+    --ft-collaboration: #2563eb; --ft-alignment: #0e8fb0;
+    --shadow: 0 1px 2px #1b25320f, 0 6px 20px #1b253214; --shadow-h: 0 2px 6px #1b253214, 0 16px 40px #1b25321f;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b111c; --panel: #141d2b; --panel-2: #1a2434; --border: #26324a;
+    --ink: #e7edf6; --ink-2: #9fb0ca; --ink-3: #66768f; --accent: #35cfe8; --accent-2: #86e7f5; --good: #35d399;
+    --v-anthropic: #e08a63; --v-deepseek: #7f93ff; --v-openai: #34c99e;
+    --ft-collaboration: #6a97ff; --ft-alignment: #35c6e6;
+    --shadow: 0 1px 2px #0006, 0 8px 24px #0007; --shadow-h: 0 2px 8px #0007, 0 20px 48px #0009;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
+    line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 46px 22px 60px; }
+  .mono { font-family: var(--mono); }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 8px; }
+  h1 { font-size: clamp(26px, 4vw, 38px); margin: 0; letter-spacing: -.02em; text-wrap: balance; }
+  .lede { color: var(--ink-2); margin: 12px 0 0; font-size: 15.5px; max-width: 64ch; }
+  .lede b { color: var(--ink); }
+
+  header { padding-bottom: 30px; border-bottom: 1px solid var(--border); }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 30px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+  a.console { text-decoration: none; color: inherit; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px 20px 18px; box-shadow: var(--shadow); transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+  a.console:hover { transform: translateY(-3px); box-shadow: var(--shadow-h); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  a.console:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { a.console { transition: none; } a.console:hover { transform: none; } }
+
+  .glyph { width: 42px; height: 42px; }
+  .track { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 6px; padding: 3px 8px; }
+  .chead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .console h2 { font-size: 19px; margin: 2px 0 0; letter-spacing: -.01em; }
+  .desc { color: var(--ink-2); font-size: 13.5px; margin: 8px 0 14px; flex: 1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .chip { font-family: var(--mono); font-size: 11px; color: var(--ink-2); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; }
+  .open { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent-2);
+    display: inline-flex; align-items: center; gap: 6px; }
+  a.console:hover .open .arw { transform: translateX(3px); }
+  .open .arw { transition: transform .16s ease; }
+  .local { font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 12px;
+    padding-top: 12px; border-top: 1px solid var(--border); line-height: 1.6; }
+  .local b { color: var(--ink-2); }
+
+  footer { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--border);
+    color: var(--ink-3); font-size: 12.5px; font-family: var(--mono); line-height: 1.75; }
+  footer b { color: var(--ink-2); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">XenoComm · proof of concept</p>
+    <h1>Demo Consoles</h1>
+    <p class="lede">Three run-and-see consoles for the multi-agent coordination server — each driven by the <b>real shipped code</b> and accuracy-reviewed for honesty. Pick one.</p>
+  </header>
+
+  <div class="grid">
+    <a class="console" href="./dashboard.html" data-hosted="https://claude.ai/code/artifact/a2fa4289-fc48-4b03-b471-8f6f1ad33e99">
+      <div class="chead">
+        <svg class="glyph" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+          <circle cx="17" cy="17" r="15.5" stroke="var(--accent)" stroke-width="1.3" opacity=".45"/>
+          <circle cx="9" cy="12" r="3" fill="var(--v-anthropic)"/><circle cx="25" cy="12" r="3" fill="var(--v-deepseek)"/>
+          <circle cx="17" cy="26" r="3" fill="var(--v-openai)"/><circle cx="17" cy="17" r="2.4" fill="var(--accent)"/>
+          <path d="M9 12 17 17 25 12M17 26 17 17" stroke="var(--accent)" stroke-width="1.2" opacity=".7"/>
+        </svg>
+        <span class="track">Track B · M1</span>
+      </div>
+      <h2>Coordination Console</h2>
+      <p class="desc">Three cross-vendor agents coordinate through one broker, hit a degradation, and govern an LLM-proposed protocol change end to end.</p>
+      <div class="chips"><span class="chip">cross-vendor mesh</span><span class="chip">LLM-proposed variant</span><span class="chip">vote → human gate → canary</span></div>
+      <span class="open">Open console <span class="arw">→</span></span>
+      <div class="local"><b>./dashboard.html</b> · regenerate: <b>coordination_poc.py</b></div>
+    </a>
+
+    <a class="console" href="./observability.html" data-hosted="https://claude.ai/code/artifact/e5e759c8-0927-4494-80b0-9e0d67f2aec1">
+      <div class="chead">
+        <svg class="glyph" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+          <circle cx="17" cy="8" r="3" fill="var(--ft-collaboration)"/>
+          <circle cx="8" cy="24" r="2.6" fill="var(--ft-alignment)"/><circle cx="17" cy="24" r="2.6" fill="var(--ft-alignment)"/>
+          <circle cx="26" cy="24" r="2.6" fill="var(--ft-collaboration)"/>
+          <path d="M17 11 8 21M17 11 17 21M17 11 26 21" stroke="var(--accent)" stroke-width="1.3" opacity=".8"/>
+          <circle cx="17" cy="17" r="15.5" stroke="var(--accent)" stroke-width="1.1" opacity=".32"/>
+        </svg>
+        <span class="track">E1</span>
+      </div>
+      <h2>Observability Plane</h2>
+      <p class="desc">The typed FlowEvent substrate up close — causal trees via parent_event_id, live per-flow and per-agent analytics, and gzip-JSONL export.</p>
+      <div class="chips"><span class="chip">causal event trees</span><span class="chip">live analytics</span><span class="chip">gzip-JSONL</span></div>
+      <span class="open">Open console <span class="arw">→</span></span>
+      <div class="local"><b>./observability.html</b> · regenerate: <b>e1_observability_poc.py</b></div>
+    </a>
+
+    <a class="console" href="./auth.html" data-hosted="https://claude.ai/code/artifact/521d612b-20f9-4ee2-9529-f416c8ee7378">
+      <div class="chead">
+        <svg class="glyph" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+          <rect x="8" y="15" width="18" height="13" rx="2.5" stroke="var(--accent)" stroke-width="1.6"/>
+          <path d="M11.5 15v-3.5a5.5 5.5 0 0 1 11 0V15" stroke="var(--accent)" stroke-width="1.6"/>
+          <circle cx="17" cy="21" r="2" fill="var(--good)"/>
+        </svg>
+        <span class="track">S1</span>
+      </div>
+      <h2>HTTP Transport Auth</h2>
+      <p class="desc">The bearer-token gate on the streamable-HTTP transport — 401 without a token, constant-time compared, fail-closed on a public bind.</p>
+      <div class="chips"><span class="chip">bearer-token gate</span><span class="chip">constant-time</span><span class="chip">fail-closed</span></div>
+      <span class="open">Open console <span class="arw">→</span></span>
+      <div class="local"><b>./auth.html</b> · regenerate: <b>s1_auth_poc.py</b></div>
+    </a>
+  </div>
+
+  <footer id="foot">
+    Each console runs the real components. Where something is simulated (e.g. inter-agent message traffic — XenoComm coordinates, it is not a transport) or scoped (collaboration-boundary causality, a single shared auth token), the console's own footer says so. Source: <b>mcp_server/demo/</b>.
+  </footer>
+</div>
+
+<script>
+  // Local files by default; when viewed as a hosted Artifact (claude.ai), link
+  // to the hosted consoles and open them in a new tab.
+  if (location.hostname.indexOf("claude") !== -1 || location.protocol === "https:") {
+    document.querySelectorAll("a.console[data-hosted]").forEach(function (a) {
+      a.href = a.getAttribute("data-hosted");
+      a.target = "_blank"; a.rel = "noopener";
+    });
+  }
+</script>
